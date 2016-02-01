@@ -68,11 +68,13 @@
 
 using namespace std;
 
+//#define TOP_DOWN
+
 class Solver
 {
     int M, C, price[25][25];
+#ifdef TOP_DOWN
     int memo[210][25];
-
     int shop( int money, int g )
     {
         if ( money < 0 ) return -1000000000;
@@ -83,11 +85,14 @@ class Solver
             ans = std::max( ans, shop( money - price[g][model], g + 1 ) );
         return memo[money][g] = ans;
     }
-
+#endif
 public:
     void run()
     {
-        int i, j, TC, score;
+        int i, j, TC, money;
+#ifndef TOP_DOWN
+        bool reachable[25][210];
+#endif
         scanf( "%d", &TC );
 
         while ( TC-- )
@@ -99,9 +104,28 @@ public:
                 for ( j = 1; j <= price[i][0]; j++ )
                     scanf( "%d", &price[i][j] );
             }
+#ifdef TOP_DOWN
             memset( memo, -1, sizeof memo );
-            score = shop( M, 0 );
-            ( score < 0 ) ? printf( "no solution\n" ) : printf( "%d\n", score );
+            money = shop( M, 0 );
+            ( money < 0 ) ? printf( "no solution\n" ) : printf( "%d\n", money );
+#else
+            memset( reachable, false, sizeof reachable );
+            for ( i = 1; i < price[0][0]; i++ )
+                if ( M - price[0][i] >= 0 )
+                    reachable[0][M - price[0][i]] = true;
+
+            for ( i = 1; i < C; i++ )
+                for ( money = 0; money < M; money++ )
+                    if ( reachable[i - 1][money] )
+                        for ( j = 1; j <= price[i][0]; j++ )
+                            if ( money - price[i][j] >= 0 )
+                                reachable[i][money - price[i][j]] = true;
+
+            for ( money = 0; money <= M && !reachable[C - 1][money]; money++ );
+
+            ( money == M + 1 ) ? printf( "no solution\n" ) : printf( "%d\n" , M - money );
+                 
+#endif
         }
     }
 };
