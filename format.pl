@@ -7,18 +7,21 @@ use strict;
 use warnings;
 use diagnostics;
 
+my $CLEAN_CODE = 0;
+
 my $files = 0;
 my $updated = 0;
 my $totalLines = 0;
+my $deletedComments = 0;
 my $commentLines = 0;
 my $emptyLines = 0;
 my $fixedLines = 0;
 
 my $workingPath = gets( ' Enter source path' );
-#my $workingPath = '';
+##my $workingPath = '';
 
 print( " FORMAT: $workingPath\n" );
-recurse( $workingPath );
+recurse( $workingPath, \&formatFile );
 print( " ----------------------\n" );
 print( " Finished:\n" );
 print( " TOTAL FILES: $files\n" );
@@ -28,6 +31,7 @@ print( " TOTAL LINES: $totalLines\n" );
 print( " FIXED LINES: $fixedLines\n" );
 print( " EMPTY LINES: $emptyLines\n" );
 print( "    COMMENTS: $commentLines\n" );
+print( " DELETED COMMENTS: $deletedComments\n" ) if $CLEAN_CODE;
 <STDIN>;
 
 ##------------------------------------------------------------------------------
@@ -45,60 +49,46 @@ sub formatFile
             return $line;
         }
 
-        while ( $line =~ /[^\s]\?/ )
-        {
-            $line =~ s/([^\s])\?/$1 \?/;
-        }
-        while ( $line =~ /[^\s],[^\s]/ )
-        {
-            $line =~ s/([^\s]),([^\s])/$1, $2/;
-        }
-        while ( $line =~ /[\)_]:[\(_]/ )
-        {
-            $line =~ s/([\)_]):([\(_])/$1 : $2/;
-        }
-        while ( $line =~ /[^\s]%[^=\s]/ )
-        {
-            $line =~ s/([^\s])%([^=\s])/$1 % $2/;
-        }
-        while ( $line =~ /[^-+*\/!=<>\|\s]=[^=\s]/ )
-        {
-            $line =~ s/([^-+*\/!=<>\|\s])=([^=\s])/$1 = $2/;
-        }
-        while ( $line =~ /[^=\s]==[^=\s]/ )
-        {
-            $line =~ s/([^=\s])==([^=\s])/$1 == $2/;
-        }
-        while ( $line =~ /[^\s]!=[^=\s]/ )
-        {
-            $line =~ s/([^\s])!=([^=\s])/$1 != $2/;
-        }
-        while ( $line =~ /[^\*\+eE\s]\+\s+/ )
-        {
-            $line =~ s/([^\*\+eE\s])\+(\s)+/$1 \+$2/;
-        }
-        while ( $line =~ /\s+\+[^=\+\s]/ )
-        {
-            $line =~ s/\s+\+([^=\+\s])/ \+ $1/;
-        }
-        while ( $line =~ /[^-eE,:\[\s]-[^-=>\s]/ )
-        {
-            $line =~ s/([^-eE,:\[\s])-([^-=>\s])/$1 - $2/;
-        }
-        while ( $line =~ /[^\/\*\s]\/[^=\*\s]/ )
-        {
-            $line =~ s/([^\/\*\s])\/([^=\*\s])/$1 \/ $2/;
-        }
-        while ( $line =~ /[^\/\*\[\s]\*[^=\/\*,>\]\s]/ )
-        {
-            $line =~ s/([^\/\*\[\s])\*([^=\/\*,>\]\s])/$1 \* $2/;
-        }
+        while ( $line =~ s/([^\s])\?/$1 \?/ ) { }
+
+        while ( $line =~ s/([^\s]),([^\s])/$1, $2/ ) { }
+
+        while ( $line =~ s/([\)_]):([\(_])/$1 : $2/ ) { }
+
+        while ( $line =~ s/([^\s])%([^=\s])/$1 % $2/ ) { }
+
+        while ( $line =~ s/([^-+*\/!=<>\|\s])=([^=\s])/$1 = $2/ ) { }
+
+        while ( $line =~ s/([^=\s])==([^=\s])/$1 == $2/ ) { }
+
+        while ( $line =~ s/([^\s])!=([^=\s])/$1 != $2/ ) { }
+
+        while ( $line =~ s/([^\*\+eE\s])\+([^=\+])/$1 \+ $2/ ) { }
+
+        while ( $line =~ s/\s+\+([^=\+\s])/ \+ $1/ ) { }
+
+        while ( $line =~ s/([^-eE,:\[\s])-([^-=>\s])/$1 - $2/ ) { }
+
+        while ( $line =~ s/([^\/\*\s])\/([^=\*\s])/$1 \/ $2/ ) { }
+
+        while ( $line =~ s/([^\/\*\[\s])\*([^=\/\*,>\]\s])/$1 \* $2/ ) { }
+
+        while ( $line =~ s/([^\(;])\s+;/$1;/ ) { }
+
+        while ( $line =~ s/;(\S)/; $1/ ) { }
+
         return $line;
     };
     ##--------------------------------------------------------------------------
     local *fixParens = sub
     {
         my $line = $_[0];
+
+        $line =~ s/ if\(/ if \(/g;
+        $line =~ s/ while\(/ while \(/g;
+        $line =~ s/ switch\(/ switch \(/g;
+        $line =~ s/ for\(/ for \(/g;
+
         while ( $line =~ /\([^)\s]/ )
         {
             $line =~ s/\(([^)\s])/\( $1/g;
@@ -138,8 +128,11 @@ sub formatFile
     };
 
     my $file = $_[0];
+
+    ## Check if the file is a source file.
     my $js = ( $file =~ /.+\.js$/i );
     my $cpp = ( $file =~ /.+\.(cpp|h)$/i );
+    return if ( ( $file !~ /.+\.hx$/i ) && !$js && !$cpp );
 
     ## Read file
     open( my $FILE, '<', $file ) or die( "Can't open $file: $!" );
@@ -174,9 +167,35 @@ sub formatFile
             $lines[$k] = $line;
         }
 
-        if ( ( $line !~ /^\s*\/\// ) && ( $line !~ /^\s*\/?\*\**/ )
-                                     ## TODO: Improve JS regex detection
-                                     && ( !$js || ( $js && ( $line !~ /\/[^\*].*[^\*]\// ) ) ) )
+        ## Process comments
+        my $isComment = ( $lines[$k] =~ /^\s*\/\/.*/ );
+        if ( $CLEAN_CODE && $isComment )
+        {
+            my $validComment = ( $lines[$k] =~ /^\s*\/\/[=-]+/ );
+            $validComment = ( $lines[$k] =~ /^\s*\/\/\/\/[^\/]/ ) if ( !$validComment );
+            $validComment = ( $lines[$k] =~ /^\s*\/\/!/ ) if ( !$validComment );
+            $validComment = ( $lines[$k] =~ /^\s*\/\/ \[/ ) if ( !$validComment );
+            $validComment = ( $lines[$k] =~ /^\s*\/\/ \(/ ) if ( !$validComment );
+            $validComment = ( $lines[$k] =~ /^\s*\/\/ \d/ ) if ( !$validComment );
+
+            if ( !$validComment )
+            {
+                $validComment = ( $lines[$k] =~ /^\s*\/\/(\s*)[A-Za-z]+/ );
+                ## Delete suspicious line comments
+                if ( !$isComment || ( !defined $1 ) || ( length( $1 ) != 1 ) )
+                {
+                    $deletedComments++;
+                    $changed = $lineChanged = 1;
+                    $changes{'CLEAN'} = 1;
+                    $lines[$k] = '';
+                }
+            }
+        }
+        $commentLines++ if ( $isComment );
+
+        if ( !$isComment && ( $line !~ /^\s*\/?\*\**/ )
+                         ## TODO: Improve JS regex detection
+                         && ( !$js || ( $js && ( $line !~ /\/[^\*].*[^\*]\// ) ) ) )
         {
             ## Ignore final comments
             my $newLine = $line;
@@ -234,8 +253,6 @@ sub formatFile
             $lines[$k] = $stripped if ( $stripped ne $lines[$k] );
         }
 
-        $commentLines++ if ( $lines[$k] =~ /^\s*\/\// );
-
         if ( $lines[$k] =~ /^\s*\n$/ )
         {
             if ( $wasEmpty || $wasOpenBrace )
@@ -292,10 +309,7 @@ sub gets
     }
 	my $ret = <STDIN>;
 	chomp( $ret );
-	if ( ( $ret eq "" ) && ( defined $_[1] ) )
-    {
-        $ret = $_[1];
-    }
+	$ret = $_[1] if ( ( $ret eq "" ) && ( defined $_[1] ) );
     return $ret;
 }
 
@@ -303,6 +317,7 @@ sub gets
 sub recurse
 {
     my $path = $_[0];
+    my $onFileCallback = $_[1];
 
     ## Append a trailing / if it's not there.
     $path .= '/' if ( $path !~ /\/$/ );
@@ -313,15 +328,11 @@ sub recurse
         if ( -d $eachFile )
         {
             ## If the file is a directory, continue recursive scan.
-            recurse( $eachFile );
+            recurse( $eachFile, $onFileCallback );
         }
         else
         {
-            ## Check if the file is a source file.
-            if ( $eachFile =~ /.+\.(hx|cpp|h|js)$/i )
-            {
-                formatFile( $eachFile );
-            }
+            $onFileCallback->( $eachFile );
         }
     }
 }
