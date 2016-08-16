@@ -155,6 +155,8 @@ elsif ($file =~ /([A-Za-z\d_]+)\.java$/gi) {
 	system("java $class") if (-e "$class.class");
 }
 elsif ($file =~ /([A-Za-z\d_-]+)\.hs$/gi) {
+	my $program = $1;
+    unlink("$program.exe") if (-e "$program.exe");
     print color 'white';
     print("Haskell: ");
     print color 'bold yellow';
@@ -168,6 +170,8 @@ elsif ($file =~ /([A-Za-z\d_-]+)\.hs$/gi) {
     }
 }
 elsif ($file =~ /([A-Za-z\d_-]+)\.rs$/gi) {
+	my $program = $1;
+    unlink("$program.exe") if (-e "$program.exe");
     print color 'white';
     print("Rust: ");
     print color 'bold yellow';
@@ -180,9 +184,25 @@ elsif ($file =~ /([A-Za-z\d_-]+)\.rs$/gi) {
         system("$1.exe");
     }
 }
+elsif ($file =~ /([A-Za-z\d_-]+)\.ml$/gi) {
+	my $program = $1;
+    unlink("$program.exe") if (-e "$program.exe");
+    print color 'white';
+    print("Ocaml: ");
+    print color 'bold yellow';
+    print("$file\n");
+    print color 'bold green';
+    system("ocamlc -o $1.exe $file");
+    print("\n");
+    if (-e "$1.exe") {
+        print color 'bold green';
+        system("$1.exe");
+    }
+}
 elsif ($file =~ /([A-Za-z\d_-]+)\.asm$/gi) {
     runNasm($file);
 }
 else {
+    print color 'bold red';
     print("[ERROR] No recognized file: $file\n");
 }
