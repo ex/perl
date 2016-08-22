@@ -5,8 +5,6 @@ use warnings;
 use Win32::Console::ANSI;
 use Term::ANSIColor;
 
-require "F:/bck/utils/scripts/nasm.pl";
-
 #my $PYTHON_PATH = "C:/Python27/python.exe";
 #my $PYTHON_PATH = "C:/Python33/python.exe";
 my $PYTHON_PATH = "python";
@@ -19,7 +17,6 @@ my $KILLA_PATH = "F:/dvx/love/bin/windows/killa.exe";
 my $CLOJURE_PATH = "E:/progs/clojure-1.6.0/clojure-1.6.0.jar";
 
 my $FLEX_DIR = 'C:/flex3/bin';
-my $FLEX_MXMLC = 'mxmlc.exe';
 my $FLASH_PLAYER = 'F:/stp/_prog_/flash/flashplayer_10_sa_debug.exe';
 
 my $file = $ARGV[0];
@@ -137,7 +134,7 @@ elsif (($file =~ /([A-Za-z\d_-]+)\.mxm$]/gi)
     print color 'bold yellow';
     print("$file\n");
     print color 'bold green';
-	system('"'.$FLEX_DIR.'\\'.$FLEX_MXMLC."\" $file" );
+	system('"'.$FLEX_DIR.'\\mxmlc.exe'."\" $file" );
 	if (-e "$class.swf") {
         ##system('"firefox.exe" '."$class.swf");
         system("$FLASH_PLAYER $class.swf");
