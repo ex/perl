@@ -67,6 +67,7 @@ sub formatFile
 
         while ( $line =~ s/\s+\+([^=\+\s])/ \+ $1/ ) { }
 
+        $line =~ s/=-(\S)/= -$1/;
         while ( $line =~ s/([^-eE,:\[\s])-([^-=>\s])/$1 - $2/ ) { }
 
         while ( $line =~ s/([^\/\*\s])\/([^=\*\s])/$1 \/ $2/ ) { }
@@ -75,6 +76,12 @@ sub formatFile
 
         while ( $line =~ s/([^\(;])\s+;/$1;/ ) { }
 
+        while ( $line =~ s/([^\[\s]){/$1 {/ ) { }
+        while ( $line =~ s/{(\S)/{ $1/ ) { }
+
+        while ( $line =~ s/(\S)}/$1 }/ ) { }
+
+        $line =~ s/;;\n/;\n/;
         while ( $line =~ s/;(\S)/; $1/ ) { }
 
         return $line;
@@ -193,22 +200,22 @@ sub formatFile
         }
         $commentLines++ if ( $isComment );
 
-        if ( !$isComment && ( $line !~ /^\s*\/?\*\**/ )
-                         ## TODO: Improve JS regex detection
-                         && ( !$js || ( $js && ( $line !~ /\/[^\*].*[^\*]\// ) ) ) )
+        ## Ignore final comments
+        my $newLine = $line;
+        my $comment = '';
+        my $index = index( $newLine, '//' );
+        if ( $index >= 0 )
         {
-            ## Ignore final comments
-            my $newLine = $line;
-            my $comment = '';
-            my $index = index( $newLine, '//' );
-            if ( $index >= 0 )
-            {
-                $comment = substr( $newLine, $index );
-                $newLine = substr( $newLine, 0, $index );
-            }
+            $comment = substr( $newLine, $index );
+            $newLine = substr( $newLine, 0, $index );
+        }
+        my $stripped = $newLine;
 
+        if ( !$isComment && ( $newLine !~ /^\s*\/?\*\**/ )
+                         ## TODO: Improve JS regex detection
+                         && ( !$js || ( $js && ( $newLine !~ /\/[^\*].*[^\*]\// ) ) ) )
+        {
             ## Extract strings
-            my $stripped = $newLine;
             my %strs = ();
             my $counter = 0;
             while ( $stripped =~ /(""|"\\{2,}"|".*?[^\\]")/ )
@@ -244,15 +251,16 @@ sub formatFile
             {
                 $stripped =~ s/\Q$key\E/$strs{$key}/;
             }
-
-            ## Restore final comments
-            if ( $index >= 0 )
-            {
-                $stripped .= $comment;
-            }
-            $lines[$k] = $stripped if ( $stripped ne $lines[$k] );
         }
 
+        ## Restore final comments
+        if ( $index >= 0 )
+        {
+            $stripped .= $comment;
+        }
+        $lines[$k] = $stripped if ( $stripped ne $lines[$k] );
+
+        ## Check for empty lines
         if ( $lines[$k] =~ /^\s*\n$/ )
         {
             if ( $wasEmpty || $wasOpenBrace )
