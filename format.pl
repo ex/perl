@@ -78,8 +78,8 @@ sub formatFile
 
         while ( $line =~ s/([^\[\s]){/$1 {/ ) { }
         while ( $line =~ s/{(\S)/{ $1/ ) { }
-
         while ( $line =~ s/(\S)}/$1 }/ ) { }
+        $line =~ s/([=|,]) { }/$1 {}/;
 
         $line =~ s/;;\n/;\n/;
         while ( $line =~ s/;(\S)/; $1/ ) { }

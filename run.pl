@@ -5,9 +5,6 @@ use warnings;
 use Win32::Console::ANSI;
 use Term::ANSIColor;
 
-#my $PYTHON_PATH = "C:/Python27/python.exe";
-#my $PYTHON_PATH = "C:/Python33/python.exe";
-my $PYTHON_PATH = "python";
 my $GCC_DIR = "";
 my $JDK_DIR = 'C:/Program Files/Java/jdk1.6.0_21/bin';
 my $LUA_PATH = "F:/dvx/lua/luadev/bin/lua.exe";
@@ -104,7 +101,7 @@ elsif ($file =~ /([A-Za-z\d_-]+)\.py$/gi) {
     print color 'bold yellow';
     print("$file\n");
     print color 'bold green';
-    system("$PYTHON_PATH -tt \"$file\"");
+    system("python -tt \"$file\"");
     print("\n");
 }
 elsif ($file =~ /([A-Za-z\d_-]+)\.rb$/gi) {
