@@ -31,7 +31,8 @@ while ( my $line = <$input> )
 
             my $url = $line;
             my $ff = File::Fetch->new( uri => $url );
-            my $file = $ff->fetch( to => $DESTINE . $localPath ) or die $ff->error;
+            ##my $file = $ff->fetch( to => $DESTINE . $localPath ) or die $ff->error;
+            my $file = $ff->fetch( to => $DESTINE . $localPath );
         }
     }
     else
