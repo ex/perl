@@ -95,6 +95,7 @@ sub formatFile
         $line =~ s/ while\(/ while \(/g;
         $line =~ s/ switch\(/ switch \(/g;
         $line =~ s/ for\(/ for \(/g;
+        $line =~ s/ function\s+\(/ function\(/g;
 
         while ( $line =~ /\([^)\s]/ )
         {
@@ -139,7 +140,8 @@ sub formatFile
     ## Check if the file is a source file.
     my $js = ( $file =~ /.+\.js$/i );
     my $cpp = ( $file =~ /.+\.(cpp|h)$/i );
-    return if ( ( $file !~ /.+\.hx$/i ) && !$js && !$cpp );
+    my $cs = ( $file =~ /.+\.cs$/i );
+    return if ( ( $file !~ /.+\.hx$/i ) && !$js && !$cpp && !$cs );
 
     ## Read file
     open( my $FILE, '<', $file ) or die( "Can't open $file: $!" );
@@ -218,16 +220,16 @@ sub formatFile
             ## Extract strings
             my %strs = ();
             my $counter = 0;
-            while ( $stripped =~ /(""|"\\{2,}"|".*?[^\\]")/ )
-            {
-                $strs{"__s__$counter" . '_'} = $1;
-                $stripped =~ s/\Q$1\E/__s__\Q$counter\E_/;
-                $counter++;
-            }
             while ( $stripped =~ /(''|'\\{2,}'|'.*?[^\\]')/ )
             {
-                $strs{"__s__$counter" . '_'} = $1;
-                $stripped =~ s/\Q$1\E/__s__\Q$counter\E_/;
+                $strs{"___s___$counter" . '_'} = $1;
+                $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
+                $counter++;
+            }
+            while ( $stripped =~ /(""|"\\{2,}"|".*?[^\\]")/ )
+            {
+                $strs{"___s___$counter" . '_'} = $1;
+                $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
                 $counter++;
             }
 
@@ -250,6 +252,13 @@ sub formatFile
             foreach my $key ( keys( %strs ) )
             {
                 $stripped =~ s/\Q$key\E/$strs{$key}/;
+            }
+
+            ## Check if stripped line is OK
+            if ( $stripped =~ /___s___/ )
+            {
+                ####print "\nERROR PARSING:\n$newLine";
+                $stripped = $newLine;
             }
         }
 
