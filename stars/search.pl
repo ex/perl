@@ -4,13 +4,13 @@
 use strict;
 use warnings;
 
-my $RANGE = 10;
+my $RANGE = 12.5;
 my $k = 0;
 
 open( my $filehandle, '<', 'hygdata_v3.csv' );
 open( my $json, '>', 'stars.json' );
 
-print( $json "var stars = [\n" );
+print( $json "var STARS = [\n" );
 
 while ( <$filehandle> )
 {
@@ -65,7 +65,7 @@ while ( <$filehandle> )
         my $d = sqrt( $x * $x + $y * $y + $z * $z );
         $line .= " $dist x[$fields[16]] y[$fields[17]] z[$fields[18]]";
 
-        die "[ERROR] $d $dist\n" if ( abs( $dist - $d ) > 0.01 );
+        die "[ERROR] $d $dist\n" if ( abs( $dist - $d ) > 0.02 );
 
         print "$line\n";
         print( $json "\t{id: $fields[0], x:$x, y:$y, z:$z},\n" );

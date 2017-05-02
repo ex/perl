@@ -17,6 +17,7 @@ while ( 1 )
 	$search = uc( <STDIN> );
 	chomp( $search );
 	last if ( $search eq '' );
+    $found = 0;
 
 	for ( my $k = ord( 'A' ); $k <= ord( 'Z' ); $k++ )
 	{
