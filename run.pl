@@ -8,8 +8,6 @@ use Term::ANSIColor;
 my $GCC_DIR = "";
 my $JDK_DIR = 'C:/Program Files/Java/jdk1.6.0_21/bin';
 my $LUA_PATH = "F:/dvx/lua/luadev/bin/lua.exe";
-##my $KILLA_PATH = "F:/dvx/killa/bin/windows/killa.exe";
-##my $KILLA_PATH = "F:/dvx/killa/bin/windows/killaext.exe";
 my $KILLA_PATH = "F:/dvx/love/bin/windows/killa.exe";
 my $CLOJURE_PATH = "E:/progs/clojure-1.6.0/clojure-1.6.0.jar";
 
@@ -46,7 +44,7 @@ elsif ($file =~ /([A-Za-z\d_-]+)\.c$/gi) {
         system("$program.exe");
     }
 }
-elsif ($file =~ /([A-Za-z\d_-]+)\.pl$/gi) {
+elsif ($file =~ /([A-Za-z\d_-]+)\.(pl|cgi)$/gi) {
     print color 'white';
     print("Perl: ");
     print color 'bold yellow';
