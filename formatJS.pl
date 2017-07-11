@@ -5,10 +5,12 @@
 ##------------------------------------------------------------------------------
 use strict;
 use warnings;
+use diagnostics;
+
 use File::Slurp;
-use JavaScript::Beautifier qw(js_beautify);
+use JavaScript::Beautifier qw( js_beautify );
 
 my $file = $ARGV[0];
-my $text = read_file($file);
-$text = js_beautify($text, { indent_size => 1, indent_character => "\t" });
-print($text);
+my $text = read_file( $file );
+$text = js_beautify( $text, { indent_size => 1, indent_character => "\t" }) ;
+print( $text );

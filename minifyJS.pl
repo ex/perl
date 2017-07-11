@@ -5,10 +5,12 @@
 ##------------------------------------------------------------------------------
 use strict;
 use warnings;
+use diagnostics;
+
 use File::Slurp;
-use JavaScript::Minifier qw(minify);
+use JavaScript::Minifier qw( minify );
 
 my $file = $ARGV[0];
-my $text = read_file($file);
-$text = minify(input => $text);
-print($text);
+my $text = read_file( $file );
+$text = minify( input => $text );
+print( $text );
