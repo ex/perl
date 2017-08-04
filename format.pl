@@ -76,10 +76,10 @@ sub formatFile
 
         while ( $line =~ s/([^\(;])\s+;/$1;/ ) { }
 
-        while ( $line =~ s/([^\[\s]){/$1 {/ ) { }
-        while ( $line =~ s/{(\S)/{ $1/ ) { }
-        while ( $line =~ s/(\S)}/$1 }/ ) { }
-        $line =~ s/([=|,]) { }/$1 {}/;
+        while ( $line =~ s/([^\[\s])\{/$1 \{/ ) { }
+        while ( $line =~ s/{(\S)/\{ $1/ ) { }
+        while ( $line =~ s/(\S)\}/$1 \}/ ) { }
+        $line =~ s/([=|,]) \{ \}/$1 \{\}/;
 
         $line =~ s/;;\n/;\n/;
         while ( $line =~ s/;(\S)/; $1/ ) { }
@@ -212,10 +212,13 @@ sub formatFile
             $newLine = substr( $newLine, 0, $index );
         }
         my $stripped = $newLine;
+        ##print "regex? $newLine\n" if ( $newLine =~ /\/[^\*].*[^\*]\// );
 
         if ( !$isComment && ( $newLine !~ /^\s*\/?\*\**/ )
-                         ## TODO: Improve JS regex detection
-                         && ( !$js || ( $js && ( $newLine !~ /\/[^\*].*[^\*]\// ) ) ) )
+                         ## TODO: Improve lame JS regex detection
+                         && ( !$js || ( $js && ( $newLine !~ /\/[^\*].*[^\*]\// )
+                                            ## Ignore encoded images in JS
+                                            && ( $newLine !~ /"data:image\// ) ) ) )
         {
             ## Extract strings
             my %strs = ();
@@ -226,7 +229,16 @@ sub formatFile
                 $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
                 $counter++;
             }
+
             while ( $stripped =~ /(""|"\\{2,}"|".*?[^\\]")/ )
+            {
+                $strs{"___s___$counter" . '_'} = $1;
+                $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
+                $counter++;
+            }
+
+            ## Don't mess with JS oneliner casts
+            if ( $js && ( $stripped =~ /(\/\*\* \@type \{.+\} \*\/)/ ) )
             {
                 $strs{"___s___$counter" . '_'} = $1;
                 $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
@@ -324,9 +336,9 @@ sub gets
     {
         print( ( defined $_[1] ) ? "$_[0] ($_[1]): " : "$_[0]: " );
     }
-	my $ret = <STDIN>;
-	chomp( $ret );
-	$ret = $_[1] if ( ( $ret eq "" ) && ( defined $_[1] ) );
+    my $ret = <STDIN>;
+    chomp( $ret );
+    $ret = $_[1] if ( ( $ret eq "" ) && ( defined $_[1] ) );
     return $ret;
 }
 
