@@ -8,6 +8,7 @@ use warnings;
 use diagnostics;
 
 my $CLEAN_CODE = 0;
+my $JS_FIX_STRINGS = 1;
 
 my $files = 0;
 my $updated = 0;
@@ -232,8 +233,15 @@ sub formatFile
 
             while ( $stripped =~ /(""|"\\{2,}"|".*?[^\\]")/ )
             {
-                $strs{"___s___$counter" . '_'} = $1;
-                $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
+                my $s = $1;
+                $strs{"___s___$counter" . '_'} = $s;
+                $stripped =~ s/\Q$s\E/___s___\Q$counter\E_/;
+                if ( $js && $JS_FIX_STRINGS && $s !~ /\\n|\\t|\\"|'/ )
+                {
+                    $strs{"___s___$counter" . '_'} =~ s/"/'/g;
+                    $changed = $lineChanged = 1;
+                    $changes{'STRINGS'} = 1;
+                }
                 $counter++;
             }
 
