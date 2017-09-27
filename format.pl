@@ -145,9 +145,9 @@ sub formatFile
     return if ( ( $file !~ /.+\.hx$/i ) && !$js && !$cpp && !$cs );
 
     ## Read file
-    open( my $FILE, '<', $file ) or die( "Can't open $file: $!" );
-        my @lines = <$FILE>;
-    close( $FILE );
+    open( my $handle, '<', $file ) or die( "Can't open $file: $!" );
+        my @lines = <$handle>;
+    close( $handle );
 
     $files++;
     $totalLines += @lines;
@@ -213,19 +213,22 @@ sub formatFile
             $newLine = substr( $newLine, 0, $index );
         }
         my $stripped = $newLine;
-        ##print "regex? $newLine\n" if ( $newLine =~ /\/[^\*].*[^\*]\// );
+        ##print "regex? $newLine\n" if ( ( $newLine =~ /\/[^\*].*[^\*]\// ) || ( $newLine =~ /\/\S+\// ) );
 
         if ( !$isComment && ( $newLine !~ /^\s*\/?\*\**/ )
                          ## TODO: Improve lame JS regex detection
-                         && ( !$js || ( $js && ( $newLine !~ /\/[^\*].*[^\*]\// )
+                         && ( !$js || ( $js && ( ( $newLine !~ /\/[^\*].*[^\*]\// ) && ( $newLine !~ /\/\S+\// ) )
                                             ## Ignore encoded images in JS
                                             && ( $newLine !~ /"data:image\// ) ) ) )
         {
             ## Extract strings
             my %strs = ();
             my $counter = 0;
+            my @keys = ();
+
             while ( $stripped =~ /(''|'\\{2,}'|'.*?[^\\]')/ )
             {
+                push( @keys, "___s___$counter" . '_' );
                 $strs{"___s___$counter" . '_'} = $1;
                 $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
                 $counter++;
@@ -234,9 +237,10 @@ sub formatFile
             while ( $stripped =~ /(""|"\\{2,}"|".*?[^\\]")/ )
             {
                 my $s = $1;
+                push( @keys, "___s___$counter" . '_' );
                 $strs{"___s___$counter" . '_'} = $s;
                 $stripped =~ s/\Q$s\E/___s___\Q$counter\E_/;
-                if ( $js && $JS_FIX_STRINGS && $s !~ /\\n|\\t|\\"|'/ )
+                if ( $js && $JS_FIX_STRINGS && $s !~ /\\n|___s___|\\t|\\"|'/ )
                 {
                     $strs{"___s___$counter" . '_'} =~ s/"/'/g;
                     $changed = $lineChanged = 1;
@@ -248,6 +252,7 @@ sub formatFile
             ## Don't mess with JS oneliner casts
             if ( $js && ( $stripped =~ /(\/\*\* \@type \{.+\} \*\/)/ ) )
             {
+                push( @keys, "___s___$counter" . '_' );
                 $strs{"___s___$counter" . '_'} = $1;
                 $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
                 $counter++;
@@ -269,16 +274,16 @@ sub formatFile
             }
 
             ## Restore strings
-            foreach my $key ( keys( %strs ) )
+            for( my $q = @keys - 1; $q >= 0; $q-- )
             {
-                $stripped =~ s/\Q$key\E/$strs{$key}/;
+                $stripped =~ s/\Q$keys[$q]\E/$strs{$keys[$q]}/;
             }
 
             ## Check if stripped line is OK
             if ( $stripped =~ /___s___/ )
             {
-                ####print "\nERROR PARSING:\n$newLine";
-                $stripped = $newLine;
+                print "\nERROR PARSING:\n$newLine";
+                $stripped = $lines[$k];
             }
         }
 
@@ -353,14 +358,21 @@ sub gets
 ##------------------------------------------------------------------------------
 sub recurse
 {
-    my $path = $_[0];
-    my $onFileCallback = $_[1];
+    my $path = shift;
+    my $onFileCallback = shift;
+
+    die( "Path too short: $path" ) if ( length( $path ) < 4 );
+    if (! -d $path )
+    {
+        $onFileCallback->( $path );
+        return;
+    }
 
     ## Append a trailing / if it's not there.
     $path .= '/' if ( $path !~ /\/$/ );
 
     ## Loop through the files contained in the directory.
-    for my $eachFile ( glob( $path.'*' ) )
+    for my $eachFile ( glob( $path . '*' ) )
     {
         if ( -d $eachFile )
         {
