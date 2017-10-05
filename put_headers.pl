@@ -72,8 +72,8 @@ sub insertHeader
 {
     local *addInvalidFile = sub
     {
-        my $relativeFile = $_[0];
-        my $utf8 = $_[1];
+        my $relativeFile = shift;
+        my $utf8 = shift;
 
         print color 'bold red';
         print '  Invalid!: ' . $relativeFile;
@@ -84,8 +84,8 @@ sub insertHeader
 
     local *shrink = sub
     {
-        my $string = $_[0];
-        my $size = $_[1];
+        my $string = shift;
+        my $size = shift;
         if ( length( $string ) > $size )
         {
             my $len = ( $size % 2 == 0 ) ? ( $size / 2 - 2 ) : ( $size - 3 ) / 2;
@@ -94,7 +94,7 @@ sub insertHeader
         return $string;
     };
 
-    my $file = $_[0];
+    my $file = shift;
     ## Check if the file is a source file.
     if ( $file !~ /.+\.(cpp|h|hx|js|cs)$/i )
     {
@@ -107,7 +107,7 @@ sub insertHeader
     ## Create a valid header.
     my $sourceFile = substr( $file, rindex( $file, "/" ) + 1 );
     my $headerFile = "// $sourceFile\n";
-    my $headerHolder = "// Copyright (c) $year, Bamtang Games. All Rights Reserved.\n";
+    my $headerHolder = "// Copyright (c) $year, Company. All Rights Reserved.\n";
     my $header = $HEADER . $headerFile . $headerHolder . $FOOTER;
 
     ## Read file
@@ -257,8 +257,8 @@ sub insertHeader
 ##------------------------------------------------------------------------------
 sub recurse
 {
-    my $path = $_[0];
-    my $onFileCallback = $_[1];
+    my $path = shift;
+    my $onFileCallback = shift;
 
     ## Append a trailing / if it's not there.
     $path .= '/' if ( $path !~ /\/$/ );

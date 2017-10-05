@@ -32,8 +32,8 @@ print "   FINISHED:\n";
 ##------------------------------------------------------------------------------
 sub compareDirs
 {
-    my $fileA = $_[0];
-    my $depth = $_[1];
+    my $fileA = shift;
+    my $depth = shift;
     my $fileB = $comparePath . '/' . substr( $fileA, length( $workingPath ) + 1 );
     if (!  -e $fileB )
     {
@@ -116,10 +116,10 @@ sub compareDirs
 ##------------------------------------------------------------------------------
 sub printLeaf
 {
-    my $file = basename( $_[0] );
-    my $depth = $_[1];
-    my $isDir = $_[2];
-    my $error = $_[3];
+    my $file = basename( shift );
+    my $depth = shift;
+    my $isDir = shift;
+    my $error = shift;
     print color 'clear green';
     foreach my $k ( 0 .. $depth - 1 )
     {
@@ -143,9 +143,9 @@ sub printLeaf
 ##------------------------------------------------------------------------------
 sub recurse
 {
-    my $path = $_[0];
-    my $onFileCallback = $_[1];
-    my $depth = $_[2];
+    my $path = shift;
+    my $onFileCallback = shift;
+    my $depth = shift;
 
     ## Append a trailing / if it's not there.
     $path .= '/' if ( $path !~ /\/$/ );
