@@ -41,8 +41,8 @@ sub formatFile
     ##--------------------------------------------------------------------------
     local *fixOperators = sub
     {
-        my $line = $_[0];
-        my $cpp = $_[1];
+        my $line = shift;
+        my $cpp = shift;
 
         if ( $cpp && ( $line =~ /^\s*#/ ) )
         {
@@ -90,7 +90,7 @@ sub formatFile
     ##--------------------------------------------------------------------------
     local *fixParens = sub
     {
-        my $line = $_[0];
+        my $line = shift;
 
         $line =~ s/ if\(/ if \(/g;
         $line =~ s/ while\(/ while \(/g;
@@ -110,24 +110,40 @@ sub formatFile
         return $line;
     };
     ##--------------------------------------------------------------------------
+    local *fixBrackets = sub
+    {
+        my $line = shift;
+
+        while ( $line =~ /\[[^]\s]/ )
+        {
+            $line =~ s/\[([^]\s])/\[ $1/g;
+        }
+        while ( $line =~ /[^[\s]\]/ )
+        {
+            $line =~ s/([^[\s])\]/$1 \]/g;
+        }
+        $line =~ s/\[\s+\]/\[\]/g;
+        return $line;
+    };
+    ##--------------------------------------------------------------------------
     local *replaceTabs = sub
     {
-        my $line = $_[0];
+        my $line = shift;
         $line =~ s/\t/    /g;
         return $line;
     };
     ##--------------------------------------------------------------------------
     local *rightTrim = sub
     {
-        my $line = $_[0];
+        my $line = shift;
         $line =~ s/[ \t]+$//;
         return $line;
     };
     ##--------------------------------------------------------------------------
     local *shrink = sub
     {
-        my $string = $_[0];
-        my $size = $_[1];
+        my $string = shift;
+        my $size = shift;
         if ( length( $string ) > $size )
         {
             my $len = ( $size % 2 == 0 ) ? ( $size / 2 - 2 ) : ( $size - 3 ) / 2;
@@ -265,12 +281,24 @@ sub formatFile
                 $changes{'PARENS'} = 1;
                 $stripped = $line;
             }
+
             $line = fixOperators( $stripped, $cpp );
             if ( $line ne $stripped )
             {
                 $changed = $lineChanged = 1;
                 $changes{'OPS'} = 1;
                 $stripped = $line;
+            }
+
+            if ( $cpp )
+            {
+                $line = fixBrackets( $stripped );
+                if ( $line ne $stripped )
+                {
+                    $changed = $lineChanged = 1;
+                    $changes{'BRACKETS'} = 1;
+                    $stripped = $line;
+                }
             }
 
             ## Restore strings
