@@ -92,15 +92,18 @@ sub recurse
 {
     my $path = $_[0];
     my $onFileCallback = $_[1];
+    my $scaped = $path =~ /".+"/;
 
     ## Append a trailing / if it's not there.
     $path .= '/' if ( $path !~ /\/$/ );
+
 
     ## Loop through the files contained in the directory.
     for my $eachFile ( glob( $path.'*' ) )
     {
         if ( -d $eachFile )
         {
+            $eachFile = "\"$eachFile\"" if ( $scaped );
             ## If the file is a directory, continue recursive scan.
             recurse( $eachFile, $onFileCallback );
         }
