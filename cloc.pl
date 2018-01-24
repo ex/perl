@@ -44,7 +44,7 @@ sub countLines
 
     ## Check if the file is a source file.
     my $js = ( $file =~ /.+\.js$/i );
-    my $cpp = ( $file =~ /.+\.(cpp|h)$/i );
+    my $cpp = ( $file =~ /.+\.(cpp|h|c|inl)$/i );
     my $cs = ( $file =~ /.+\.cs$/i );
     my $hx = ( $file =~ /.+\.hx$/i );
     return if ( !$hx && !$js && !$cpp && !$cs );
@@ -90,13 +90,12 @@ sub gets
 ##------------------------------------------------------------------------------
 sub recurse
 {
-    my $path = $_[0];
-    my $onFileCallback = $_[1];
+    my $path = shift;
+    my $onFileCallback = shift;
     my $scaped = $path =~ /".+"/;
 
     ## Append a trailing / if it's not there.
     $path .= '/' if ( $path !~ /\/$/ );
-
 
     ## Loop through the files contained in the directory.
     for my $eachFile ( glob( $path.'*' ) )
