@@ -114,13 +114,13 @@ sub formatFile
     {
         my $line = shift;
 
-        while ( $line =~ /\[[^]\s]/ )
+        while ( $line =~ /\[\s+\S+/ )
         {
-            $line =~ s/\[([^]\s])/\[ $1/g;
+            $line =~ s/\[\s+(\S+)/\[$1/g;
         }
-        while ( $line =~ /[^[\s]\]/ )
+        while ( $line =~ /\S+\s+\]/ )
         {
-            $line =~ s/([^[\s])\]/$1 \]/g;
+            $line =~ s/(\S+)\s+\]/$1\]/g;
         }
         $line =~ s/\[\s+\]/\[\]/g;
         return $line;
@@ -156,7 +156,7 @@ sub formatFile
 
     ## Check if the file is a source file.
     my $js = ( $file =~ /.+\.js$/i );
-    my $cpp = ( $file =~ /.+\.(cpp|h)$/i );
+    my $cpp = ( $file =~ /.+\.(cpp|h|c|inl)$/i );
     my $cs = ( $file =~ /.+\.cs$/i );
     return if ( ( $file !~ /.+\.hx$/i ) && !$js && !$cpp && !$cs );
 
@@ -290,7 +290,7 @@ sub formatFile
                 $stripped = $line;
             }
 
-            if ( $cpp )
+            if ( $cpp || $cs )
             {
                 $line = fixBrackets( $stripped );
                 if ( $line ne $stripped )
@@ -388,9 +388,10 @@ sub recurse
 {
     my $path = shift;
     my $onFileCallback = shift;
+    my $scaped = $path =~ /".+"/;
 
     die( "Path too short: $path" ) if ( length( $path ) < 4 );
-    if (! -d $path )
+    if ( ( -e $path ) && ( ! -d $path ) )
     {
         $onFileCallback->( $path );
         return;
@@ -404,6 +405,7 @@ sub recurse
     {
         if ( -d $eachFile )
         {
+            $eachFile = "\"$eachFile\"" if ( $scaped );
             ## If the file is a directory, continue recursive scan.
             recurse( $eachFile, $onFileCallback );
         }
