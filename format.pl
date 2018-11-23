@@ -9,6 +9,9 @@ use diagnostics;
 
 my $CLEAN_CODE = 0;
 my $JS_FIX_STRINGS = 1;
+## Set this to any value greater than zero to use TABS for indentation.
+## This doen't change all the spaces to tabs, just the initial spaces.
+my $USE_TABS = 1;
 
 my $files = 0;
 my $updated = 0;
@@ -91,21 +94,13 @@ sub formatFile
     local *fixParens = sub
     {
         my $line = shift;
-
         $line =~ s/ if\(/ if \(/g;
         $line =~ s/ while\(/ while \(/g;
         $line =~ s/ switch\(/ switch \(/g;
         $line =~ s/ for\(/ for \(/g;
         $line =~ s/ function\s+\(/ function\(/g;
-
-        while ( $line =~ /\([^)\s]/ )
-        {
-            $line =~ s/\(([^)\s])/\( $1/g;
-        }
-        while ( $line =~ /[^(\s]\)/ )
-        {
-            $line =~ s/([^(\s])\)/$1 \)/g;
-        }
+        while ( $line =~ s/\(([^)\s])/\( $1/ ) { }
+        while ( $line =~ s/([^(\s])\)/$1 \)/ ) { }
         $line =~ s/\(\s+\)/\(\)/g;
         return $line;
     };
@@ -113,15 +108,8 @@ sub formatFile
     local *fixBrackets = sub
     {
         my $line = shift;
-
-        while ( $line =~ /\[\s+\S+/ )
-        {
-            $line =~ s/\[\s+(\S+)/\[$1/g;
-        }
-        while ( $line =~ /\S+\s+\]/ )
-        {
-            $line =~ s/(\S+)\s+\]/$1\]/g;
-        }
+        while ( $line =~ s/\[\s+(\S+)/\[$1/ ) { }
+        while ( $line =~ s/(\S+)\s+\]/$1\]/ ) { }
         $line =~ s/\[\s+\]/\[\]/g;
         return $line;
     };
@@ -130,6 +118,13 @@ sub formatFile
     {
         my $line = shift;
         $line =~ s/\t/    /g;
+        return $line;
+    };
+    ##--------------------------------------------------------------------------
+    local *replaceSpaces = sub
+    {
+        my $line = shift;
+        while ( $line =~ s/^(\t*)    (.*)/$1\t$2/ ) { }
         return $line;
     };
     ##--------------------------------------------------------------------------
@@ -178,18 +173,18 @@ sub formatFile
     for ( my $k = 0; $k < @lines; $k++ )
     {
         $lineChanged = 0;
-        $line = replaceTabs( $lines[$k] );
-        if ( $line ne $lines[$k] )
-        {
-            $changed = $lineChanged = 1;
-            $changes{'TABS'} = 1;
-            $lines[$k] = $line;
-        }
         $line = rightTrim( $lines[$k] );
         if ( $line ne $lines[$k] )
         {
             $changed = $lineChanged = 1;
             $changes{'TRIM'} = 1;
+            $lines[$k] = $line;
+        }
+        $line = $USE_TABS ? replaceSpaces( $lines[$k] ) : replaceTabs( $lines[$k] );
+        if ( $line ne $lines[$k] )
+        {
+            $changed = $lineChanged = 1;
+            $changes{$USE_TABS ? 'SPACES' : 'TABS'} = 1;
             $lines[$k] = $line;
         }
 
