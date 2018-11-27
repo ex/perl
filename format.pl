@@ -9,8 +9,8 @@ use diagnostics;
 
 my $CLEAN_CODE = 0;
 my $JS_FIX_STRINGS = 1;
-## Set this to any value greater than zero to use TABS for indentation.
-## This doen't change all the spaces to tabs, just the initial spaces.
+## Set this to 1 to use TABS instead of SPACES for indentation.
+## This doesn't change all the spaces to tabs, just the initial spaces.
 my $USE_TABS = 1;
 
 my $files = 0;
@@ -261,7 +261,7 @@ sub formatFile
             }
 
             ## Don't mess with JS oneliner casts
-            if ( $js && ( $stripped =~ /(\/\*\* \@type \{.+\} \*\/)/ ) )
+            if ( $js && ( $stripped =~ /(\/\*\* \@type \{.+\}\s*\*\/)/ ) )
             {
                 push( @keys, "___s___$counter" . '_' );
                 $strs{"___s___$counter" . '_'} = $1;
