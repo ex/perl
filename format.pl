@@ -46,14 +46,18 @@ sub formatFile
     {
         my $line = shift;
         my $cpp = shift;
+        my $cs = shift;
 
         if ( $cpp && ( $line =~ /^\s*#/ ) )
         {
-            ## TODO: Handle better C++: #include <path/file>
+            ## Ignore C++: #include <path/file>
             return $line;
         }
-
-        while ( $line =~ s/([^\s])\?/$1 \?/ ) { }
+        if ( !$cs )
+        {
+            ## Don't format _?_ in C# due to nullable types and null-coalescing operator
+            while ( $line =~ s/([^\s])\?/$1 \?/ ) { }
+        }
 
         while ( $line =~ s/([^\s]),([^\s])/$1, $2/ ) { }
 
@@ -277,7 +281,7 @@ sub formatFile
                 $stripped = $line;
             }
 
-            $line = fixOperators( $stripped, $cpp );
+            $line = fixOperators( $stripped, $cpp, $cs );
             if ( $line ne $stripped )
             {
                 $changed = $lineChanged = 1;
