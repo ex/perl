@@ -1,3 +1,7 @@
+##==============================================================================
+## Traverse file paths
+## Author: Laurens Rodriguez.
+##------------------------------------------------------------------------------
 use strict;
 use warnings;
 use diagnostics;
@@ -37,7 +41,7 @@ sub recurse
     die( "Path too short: $path" ) if ( length( $path ) < 4 );
     if ( ( -e $path ) && ( ! -d $path ) )
     {
-        $onFileCallback->( $path );
+        $onFileCallback->( $path ) if ( defined $onFileCallback );
         return;
     }
 
@@ -50,14 +54,14 @@ sub recurse
         if ( -d $eachFile )
         {
             $eachFile = "\"$eachFile\"" if ( $scaped );
-            $onFolderCallback->( $eachFile ) if defined $onFolderCallback;
+            $onFolderCallback->( $eachFile ) if ( defined $onFolderCallback );
 
             ## If the file is a directory, continue recursive scan.
             recurse( $eachFile, $onFileCallback, $onFolderCallback );
         }
         else
         {
-            $onFileCallback->( $eachFile );
+            $onFileCallback->( $eachFile ) if ( defined $onFileCallback );
         }
     }
 }
