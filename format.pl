@@ -7,8 +7,13 @@ use strict;
 use warnings;
 use diagnostics;
 
+## Set this to 2 to clean source code commented out like: //this.code = garbage
+## In order to maintain commented code use: ////this.code = example
+## Set this to 1 to only print the comment lines that would be deleted
 my $CLEAN_CODE = 0;
+
 my $JS_FIX_STRINGS = 1;
+
 ## Set this to 1 to use TABS instead of SPACES for indentation.
 ## This doesn't change all the spaces to tabs, just the initial spaces.
 my $USE_TABS = 1;
@@ -47,6 +52,7 @@ sub formatFile
         my $line = shift;
         my $cpp = shift;
         my $cs = shift;
+        my $js = shift;
 
         if ( $cpp && ( $line =~ /^\s*#/ ) )
         {
@@ -56,40 +62,50 @@ sub formatFile
         if ( !$cs )
         {
             ## Don't format _?_ in C# due to nullable types and null-coalescing operator
-            while ( $line =~ s/([^\s])\?/$1 \?/ ) { }
+            while ( $line =~ s/(\S)\?/$1 \?/ ) { }
         }
 
-        while ( $line =~ s/([^\s]),([^\s])/$1, $2/ ) { }
+        while ( $line =~ s/([^\s\[]),(\S)/$1, $2/ ) { }
 
-        while ( $line =~ s/([\)_]):([\(_])/$1 : $2/ ) { }
+        if ( $line !~ /^\s*(case\s|\w+:|\w+\s+\w+:)/ )
+        {
+            while ( $line =~ s/([^\\:\s])(?:\s{0}|\s{2,}):([^:])/$1 :$2/ ) { }
+        }
+        while ( $line =~ s/\):/\) :/ ) { }
+        if ( $js && ( $line !~ /\?.+:/ ) && ( $line !~ /:\s*$/ ) )
+        {
+            while ( $line =~ s/([^():\s])(\s)+:/$1:/ ) { }
+        }
+        while ( $line =~ s/([^:]):(?:\s{0}|\s{2,})([^:\\\/\s])/$1: $2/ ) { }
 
-        while ( $line =~ s/([^\s])%([^=\s])/$1 % $2/ ) { }
+        while ( $line =~ s/(\S)%([^=\s])/$1 % $2/ ) { }
 
-        while ( $line =~ s/([^-+*\/!=<>\|\s\[])=([^=\s])/$1 = $2/ ) { }
+        while ( $line =~ s/([^\-+*\/!=<>|\s\[])=([^=\s])/$1 = $2/ ) { }
 
-        while ( $line =~ s/([^=\s])==([^=\s])/$1 == $2/ ) { }
+        while ( $line =~ s/([^!=\s])(?:\s{0}|\s{2,})==/$1 ==/ ) { }
+        while ( $line =~ s/([^=])==(?:\s{0}|\s{2,})([^=\s])/$1== $2/ ) { }
 
-        while ( $line =~ s/([^\s])!=([^=\s])/$1 != $2/ ) { }
+        while ( $line =~ s/([!*+\-\/])=(?:\s{0}|\s{2,})([^=\s])/$1= $2/ ) { }
 
-        while ( $line =~ s/([^\*\+eE\s])\+([^=\+])/$1 \+ $2/ ) { }
-
-        while ( $line =~ s/\s+\+([^=\+\s])/ \+ $1/ ) { }
+        while ( $line =~ s/([^*+eE\s])(?:\s{0}|\s{2,})\+([^+])/$1 \+$2/ ) { }
+        while ( $line =~ s/([^+])\+(?:\s{0}|\s{2,})([^=+\s])/$1\+ $2/ ) { }
 
         $line =~ s/=-(\S)/= -$1/;
-        while ( $line =~ s/([^-eE,:\[\s])-([^-=>\s])/$1 - $2/ ) { }
 
-        while ( $line =~ s/([^\/\*\s])\/([^=\*\s])/$1 \/ $2/ ) { }
+        while ( $line =~ s/([^\-eE,:\[\s])-([^\-=>\s])/$1 - $2/ ) { }
 
-        while ( $line =~ s/([^\/\*\[\s])\*([^=\/\*,>\]\s])/$1 \* $2/ ) { }
+        while ( $line =~ s/([^\/*\s])\/([^=*\s])/$1 \/ $2/ ) { }
 
-        while ( $line =~ s/([^\(;])\s+;/$1;/ ) { }
+        while ( $line =~ s/([^\/*\[\s])\*([^=\/*,>\]\s])/$1 \* $2/ ) { }
+
+        while ( $line =~ s/([^(;])\s+;/$1;/ ) { }
 
         while ( $line =~ s/([^\[\s])\{/$1 \{/ ) { }
         while ( $line =~ s/{(\S)/\{ $1/ ) { }
         while ( $line =~ s/(\S)\}/$1 \}/ ) { }
         $line =~ s/([=|,]) \{ \}/$1 \{\}/;
 
-        $line =~ s/;;\n/;\n/;
+        $line =~ s/;{2,}\n/;\n/;
         while ( $line =~ s/;(\S)/; $1/ ) { }
 
         return $line;
@@ -128,6 +144,8 @@ sub formatFile
     local *replaceSpaces = sub
     {
         my $line = shift;
+        ## Ignore lines already starting with a TAB because they can be already aligned
+        return $line if ( $line =~ /^(\t+).*/ );
         while ( $line =~ s/^(\t*)    (.*)/$1\t$2/ ) { }
         return $line;
     };
@@ -157,7 +175,7 @@ sub formatFile
     my $js = ( $file =~ /.+\.js$/i );
     my $cpp = ( $file =~ /.+\.(cpp|h|c|inl)$/i );
     my $cs = ( $file =~ /.+\.cs$/i );
-    return if ( ( $file !~ /.+\.hx$/i ) && !$js && !$cpp && !$cs );
+    return if ( !$js && !$cpp && !$cs );
 
     ## Read file
     open( my $handle, '<', $file ) or die( "Can't open $file: $!" );
@@ -194,32 +212,69 @@ sub formatFile
 
         ## Process comments
         my $isComment = ( $lines[$k] =~ /^\s*\/\/.*/ );
-        if ( $CLEAN_CODE && $isComment )
+        if ( ( $CLEAN_CODE > 0 ) && $isComment )
         {
-            my $validComment = ( $lines[$k] =~ /^\s*\/\/[=-]+/ );
-            $validComment = ( $lines[$k] =~ /^\s*\/\/\/\/[^\/]/ ) if ( !$validComment );
-            $validComment = ( $lines[$k] =~ /^\s*\/\/!/ ) if ( !$validComment );
-            $validComment = ( $lines[$k] =~ /^\s*\/\/ \[/ ) if ( !$validComment );
-            $validComment = ( $lines[$k] =~ /^\s*\/\/ \(/ ) if ( !$validComment );
-            $validComment = ( $lines[$k] =~ /^\s*\/\/ \d/ ) if ( !$validComment );
+            my $validComment = ( $lines[$k] =~ /^\s*\/\/[=-]+$/ );  ## Separators: //========= or //----------
+            $validComment = ( $lines[$k] =~ /^\/\/$/ ) if ( !$validComment ); ## Header space: //
+            $validComment = ( $lines[$k] =~ /^\s*\/\/\/\/[^\/]/ ) if ( !$validComment ); ## ////
+            $validComment = ( $lines[$k] =~ /^\s*\/\/! [^\s]/ ) if ( !$validComment );   ## //!
+            $validComment = ( $lines[$k] =~ /^\s*\/\/ [\[<\d]/ ) if ( !$validComment );  ## // [ or // < or // 1.
+            $validComment = ( $js && ( $lines[$k] =~ /^\s*\/\/\$/ ) ) if ( !$validComment ); ## //$
 
             if ( !$validComment )
             {
-                $validComment = ( $lines[$k] =~ /^\s*\/\/(\s*)[A-Za-z]+/ );
+                $validComment = ( $lines[$k] =~ /^\s*\/\/ [A-Za-z]+.*/ );
                 ## Delete suspicious line comments
-                if ( !$isComment || ( !defined $1 ) || ( length( $1 ) != 1 ) )
+                if ( !$validComment )
                 {
                     $deletedComments++;
                     $changed = $lineChanged = 1;
                     $changes{'CLEAN'} = 1;
-                    $lines[$k] = '';
+                    if ( $CLEAN_CODE == 1 )
+                    {
+                        print "$lines[$k]";
+                    }
+                    else
+                    {
+                        $lines[$k] = $line = '';
+                    }
                 }
             }
         }
         $commentLines++ if ( $isComment );
 
+        ## Extract strings
+        my %strs = ();
+        my $counter = 0;
+        my @keys = ();
+
+        my $stripped = $line;
+        while ( $stripped =~ /('(?:[^\\']+|\\.)*')/ )
+        {
+            my $s = $1;
+            push( @keys, "___s___$counter" . '_' );
+            $strs{"___s___$counter" . '_'} = $1;
+            $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
+            $counter++;
+        }
+
+        while ( $stripped =~ /("(?:[^\\"]+|\\.)*")/ )
+        {
+            my $s = $1;
+            push( @keys, "___s___$counter" . '_' );
+            $strs{"___s___$counter" . '_'} = $s;
+            $stripped =~ s/\Q$s\E/___s___\Q$counter\E_/;
+            if ( $JS_FIX_STRINGS && $js && !$isComment && $s !~ /\\n|___s___|\\t|\\"|'/ )
+            {
+                $strs{"___s___$counter" . '_'} =~ s/"/'/g;
+                $changed = $lineChanged = 1;
+                $changes{'STRINGS'} = 1;
+            }
+            $counter++;
+        }
+
         ## Ignore final comments
-        my $newLine = $line;
+        my $newLine = $stripped;
         my $comment = '';
         my $index = index( $newLine, '//' );
         if ( $index >= 0 )
@@ -227,42 +282,13 @@ sub formatFile
             $comment = substr( $newLine, $index );
             $newLine = substr( $newLine, 0, $index );
         }
-        my $stripped = $newLine;
-        ##print "regex? $newLine\n" if ( ( $newLine =~ /\/[^\*].*[^\*]\// ) || ( $newLine =~ /\/\S+\// ) );
+        $stripped = $newLine;
 
         if ( !$isComment && ( $newLine !~ /^\s*\/?\*\**/ )
                          ## TODO: Improve lame JS regex detection
-                         && ( !$js || ( $js && ( ( $newLine !~ /\/[^\*].*[^\*]\// ) && ( $newLine !~ /\/\S+\// ) )
-                                            ## Ignore encoded images in JS
-                                            && ( $newLine !~ /"data:image\// ) ) ) )
+                         && ( !$js || ( $js && ( ( $newLine !~ /\/[^\*].*[^\*]\// )
+                                              && ( $newLine !~ /\/\S+\// ) ) ) ) )
         {
-            ## Extract strings
-            my %strs = ();
-            my $counter = 0;
-            my @keys = ();
-
-            while ( $stripped =~ /(''|'\\{2,}'|'.*?[^\\]')/ )
-            {
-                push( @keys, "___s___$counter" . '_' );
-                $strs{"___s___$counter" . '_'} = $1;
-                $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
-                $counter++;
-            }
-
-            while ( $stripped =~ /(""|"\\{2,}"|".*?[^\\]")/ )
-            {
-                my $s = $1;
-                push( @keys, "___s___$counter" . '_' );
-                $strs{"___s___$counter" . '_'} = $s;
-                $stripped =~ s/\Q$s\E/___s___\Q$counter\E_/;
-                if ( $js && $JS_FIX_STRINGS && $s !~ /\\n|___s___|\\t|\\"|'/ )
-                {
-                    $strs{"___s___$counter" . '_'} =~ s/"/'/g;
-                    $changed = $lineChanged = 1;
-                    $changes{'STRINGS'} = 1;
-                }
-                $counter++;
-            }
 
             ## Don't mess with JS oneliner casts
             if ( $js && ( $stripped =~ /(\/\*\* \@type \{.+\}\s*\*\/)/ ) )
@@ -281,7 +307,7 @@ sub formatFile
                 $stripped = $line;
             }
 
-            $line = fixOperators( $stripped, $cpp, $cs );
+            $line = fixOperators( $stripped, $cpp, $cs, $js );
             if ( $line ne $stripped )
             {
                 $changed = $lineChanged = 1;
@@ -300,18 +326,6 @@ sub formatFile
                 }
             }
 
-            ## Restore strings
-            for( my $q = @keys - 1; $q >= 0; $q-- )
-            {
-                $stripped =~ s/\Q$keys[$q]\E/$strs{$keys[$q]}/;
-            }
-
-            ## Check if stripped line is OK
-            if ( $stripped =~ /___s___/ )
-            {
-                print "\nERROR PARSING:\n$newLine";
-                $stripped = $lines[$k];
-            }
         }
 
         ## Restore final comments
@@ -319,6 +333,20 @@ sub formatFile
         {
             $stripped .= $comment;
         }
+
+        ## Restore strings
+        for( my $q = @keys - 1; $q >= 0; $q-- )
+        {
+            $stripped =~ s/\Q$keys[$q]\E/$strs{$keys[$q]}/;
+        }
+
+        ## Check if stripped line is OK
+        if ( $stripped =~ /___s___/ )
+        {
+            print "\nERROR PARSING:\n$newLine";
+            $stripped = $lines[$k];
+        }
+
         $lines[$k] = $stripped if ( $stripped ne $lines[$k] );
 
         ## Check for empty lines
@@ -341,7 +369,7 @@ sub formatFile
             $wasEmpty = 0;
         }
 
-        $fixedLines++ if $lineChanged;
+        $fixedLines++ if ( $lineChanged );
 
         $wasOpenBrace = ( $lines[$k] =~ /^\s*{\s*$/ );
         if ( ( $lines[$k] =~ /^\s*}\s*$/ ) && ( $lines[$k - 1] =~ /^\s*$/ ) )
