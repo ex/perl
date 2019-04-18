@@ -1,2 +1,5 @@
 # perl
-little Perl utilities
+Little Perl utilities
+
+# license
+Public Domain
