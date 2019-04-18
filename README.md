@@ -1,5 +1,5 @@
-# Perl
-Little perl utilities
+## Perl
+Little perl scrips
 
-# License
-All code here is released to the Public Domain
+## License
+All code is released into the Public Domain
