@@ -35,7 +35,7 @@ sub recurse
 {
     my $path = shift;
     my $onFileCallback = shift;
-    my $onFolderCallback = shift;
+    my $onFolderCallback = shift; ## This can return 1 to cancel recursive scan
     my $scaped = $path =~ /".+"/;
 
     die( "Path too short: $path" ) if ( length( $path ) < 4 );
@@ -54,14 +54,18 @@ sub recurse
         if ( -d $eachFile )
         {
             $eachFile = "\"$eachFile\"" if ( $scaped );
-            $onFolderCallback->( $eachFile ) if ( defined $onFolderCallback );
-
-            ## If the file is a directory, continue recursive scan.
-            recurse( $eachFile, $onFileCallback, $onFolderCallback );
+            if ( defined $onFolderCallback )
+            {
+                if ( !$onFolderCallback->( $eachFile ) )
+                {
+                    ## If is a directory and can continue recursive scan.
+                    recurse( $eachFile, $onFileCallback, $onFolderCallback );
+                }
+            }
         }
-        else
+        elsif ( defined $onFileCallback )
         {
-            $onFileCallback->( $eachFile ) if ( defined $onFileCallback );
+            $onFileCallback->( $eachFile );
         }
     }
 }
