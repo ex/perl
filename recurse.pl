@@ -17,7 +17,7 @@ close( $outputFile );
 ##------------------------------------------------------------------------------
 sub printFile
 {
-    my $file = $_[0];
+    my $file = shift;
     print "\t$file\n";
     print $outputFile "$file\n";
 }
@@ -25,9 +25,10 @@ sub printFile
 ##------------------------------------------------------------------------------
 sub printFolder
 {
-    my $folder = $_[0];
+    my $folder = shift;
     print "[$folder]\n";
     print $outputFile "$folder\n";
+    return; ## it needs tho return undef or 0 because print returns 1
 }
 
 ##------------------------------------------------------------------------------
@@ -35,10 +36,10 @@ sub recurse
 {
     my $path = shift;
     my $onFileCallback = shift;
-    my $onFolderCallback = shift; ## This can return 1 to cancel recursive scan
+    ## This can return 1 to cancel recursive scan or be undefined to process all files
+    my $onFolderCallback = shift;
     my $scaped = $path =~ /".+"/;
 
-    die( "Path too short: $path" ) if ( length( $path ) < 4 );
     if ( ( -e $path ) && ( ! -d $path ) )
     {
         $onFileCallback->( $path ) if ( defined $onFileCallback );
@@ -61,6 +62,10 @@ sub recurse
                     ## If is a directory and can continue recursive scan.
                     recurse( $eachFile, $onFileCallback, $onFolderCallback );
                 }
+            }
+            else
+            {
+                recurse( $eachFile, $onFileCallback, $onFolderCallback );
             }
         }
         elsif ( defined $onFileCallback )
