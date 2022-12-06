@@ -27,6 +27,30 @@ while ( 1 )
 			$lastDrive = $path;
 			find( \&scan, $path );
 		}
+		$path = chr( $k ) . ':\anim2';
+		if ( -d $path )
+		{
+			$lastDrive = $path;
+			find( \&scan, $path );
+		}
+		$path = chr( $k ) . ':\anim3';
+		if ( -d $path )
+		{
+			$lastDrive = $path;
+			find( \&scan, $path );
+		}
+		$path = chr( $k ) . ':\anim4';
+		if ( -d $path )
+		{
+			$lastDrive = $path;
+			find( \&scan, $path );
+		}
+		$path = chr( $k ) . ':\bt';
+		if ( -d $path )
+		{
+			$lastDrive = $path;
+			find( \&scan, $path );
+		}
 	}
 	print color 'bold green';
 	print( "FOUND: $found\n" );
