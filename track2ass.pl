@@ -4,14 +4,18 @@
 ##------------------------------------------------------------------------------
 use strict;
 use warnings;
+use utf8;
+
+my $onlyLowerCaseAscii = 1;
 
 my $namefile = gets( "Labels track file" );
+$namefile =~ s/"//;
 
 my $start = 0;
 my $end = 0;
 
-open( my $file, "<", $namefile ) or die( "Can't open [$namefile]: $!" );
-open( my $ass, ">", $namefile . '.ass' ) or die( "Can't create ASS file: $!" );
+open( my $file, "< :encoding(UTF-8)", $namefile ) or die( "Can't open [$namefile]: $!" );
+open( my $ass, "> :encoding(UTF-8)", $namefile . '.ass' ) or die( "Can't create ASS file: $!" );
 print( $ass getHeader() );
 while ( my $line = <$file> )
 {
@@ -20,7 +24,8 @@ while ( my $line = <$file> )
     {
         $start = formatTime( $1 );
         $end = formatTime( $2 );
-        print( $ass "Dialogue: 0,$start,$end,IScreenText,,0,0,0,,$3\n" );
+        $line = $onlyLowerCaseAscii ? transform( $3 ) : $3;
+        print( $ass "Dialogue: 0,$start,$end,IScreenText,,0,0,0,,$line\n" );
     }
 }
 close( $file );
@@ -43,6 +48,19 @@ sub formatTime
     $cents = int( 100 * ( $cents - $seconds ) );
     $cents = '0' . $cents if ( $cents < 10 );
     return "$hours:$minutes:$seconds.$cents";
+}
+
+##------------------------------------------------------------------------------
+sub transform
+{
+    my $line = $_[0];
+    $line = lc( $line );
+    $line =~ s/á/a/og;
+    $line =~ s/é/e/og;
+    $line =~ s/í/i/og;
+    $line =~ s/ó/o/og;
+    $line =~ s/ú/u/og;
+    return $line;
 }
 
 ##------------------------------------------------------------------------------
