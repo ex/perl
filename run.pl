@@ -99,7 +99,7 @@ elsif ($file =~ /([A-Za-z\d_-]+)\.py$/gi) {
     print color 'bold yellow';
     print("$file\n");
     print color 'bold green';
-    system("python -tt \"$file\"");
+    system("py -tt \"$file\"");
     print("\n");
 }
 elsif ($file =~ /([A-Za-z\d_-]+)\.rb$/gi) {
