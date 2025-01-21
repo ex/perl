@@ -9,24 +9,32 @@ use diagnostics;
 
 my $files = 0;
 my $filesCpp = 0;
-my $filesHaxe = 0;
 my $filesJS = 0;
 my $filesCS = 0;
+my $filesOther = 0;
 my $totalLines = 0;
 my $commentLines = 0;
 my $emptyLines = 0;
+my %fileTypes;
 
 my $workingPath = gets( ' Enter source path' );
-##my $workingPath = '';
 
 print( " SCAN: $workingPath\n" );
 recurse( $workingPath, \&countLines );
-printf( " Finished:\n\n" );
+printf( "\n Finished\n\n" );
 printf( " ======================\n" );
 printf( "     C++ files: %7d\n", $filesCpp ) if ( $filesCpp > 0 );
-printf( "    Haxe files: %7d\n", $filesHaxe ) if ( $filesHaxe > 0 );
 printf( "      JS files: %7d\n", $filesJS ) if ( $filesJS > 0 );
 printf( "      C# files: %7d\n", $filesCS ) if ( $filesCS > 0 );
+printf( "   Other files: %7d\n", $filesOther ) if ( $filesOther > 0 );
+if ( 0 )
+{
+    my @types = sort { $fileTypes{$b} <=> $fileTypes{$a} } keys %fileTypes;
+    foreach my $type ( @types )
+    {
+        print "\t\t$type\t$fileTypes{$type}\n";
+    }
+}
 printf( " ----------------------\n" );
 printf( "   TOTAL FILES: %7d\n\n", $files );
 printf( " ======================\n" );
@@ -41,23 +49,54 @@ printf( "   TOTAL LINES: %7d\n", $totalLines );
 sub countLines
 {
     my $file = $_[0];
+    $files++;
+    print " $files files found...\r" if ($files % 50 == 0);
+
 
     ## Check if the file is a source file.
     my $js = ( $file =~ /.+\.js$/i );
-    my $cpp = ( $file =~ /.+\.(cpp|h|c|inl)$/i );
+    my $cpp = ( $file =~ /.+\.(cpp|h|hpp|c|inl)$/i );
     my $cs = ( $file =~ /.+\.cs$/i );
-    my $hx = ( $file =~ /.+\.hx$/i );
-    return if ( !$hx && !$js && !$cpp && !$cs );
+
+    if ( !$js && !$cpp && !$cs )
+    {
+        $filesOther++;
+        if ( 0 )
+        {
+            my ( $type ) = $file =~ /\.([^.\/]+)$/;
+            if ( defined $type )
+            {
+                if ( exists($fileTypes{$type}) )
+                {
+                    $fileTypes{$type} += 1;
+                }
+                else
+                {
+                    $fileTypes{$type} = 1;
+                }
+            }
+            else
+            {
+                if ( exists($fileTypes{'...'}) )
+                {
+                    $fileTypes{'...'} += 1;
+                }
+                else
+                {
+                    $fileTypes{'...'} = 1;
+                }
+            }
+        }
+        return;
+    }
 
     ## Read file
     open( my $FILE, '<', $file ) or die( "Can't open $file: $!" );
         my @lines = <$FILE>;
     close( $FILE );
 
-    $files++;
     $filesCpp++ if $cpp;
     $filesJS++ if $js;
-    $filesHaxe++ if $hx;
     $filesCS++ if $cs;
     $totalLines += @lines;
 

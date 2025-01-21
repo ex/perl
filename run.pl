@@ -8,7 +8,7 @@ use Term::ANSIColor;
 my $GCC_DIR = "";
 my $JDK_DIR = 'C:/Program Files/Java/jdk1.6.0_21/bin';
 my $LUA_PATH = "F:/dvx/lua/luadev/bin/lua.exe";
-my $KILLA_PATH = "F:/dvx/love/bin/windows/killa.exe";
+my $KILLA_PATH = "C:/dvx/Killa/bin/windows";
 my $CLOJURE_PATH = "E:/progs/clojure-1.6.0/clojure-1.6.0.jar";
 
 my $FLEX_DIR = 'C:/flex3/bin';
@@ -59,7 +59,7 @@ elsif ($file =~ /([A-Za-z\d_]+)\.kia$/gi) {
     print color 'bold yellow';
     print("$file\n");
     print color 'bold green';
-    system("$KILLA_PATH \"$file\"");
+    system("$KILLA_PATH/killa.exe \"$file\"");
     print("\n");
 }
 elsif ($file =~ /([A-Za-z\d_]+)\.js$/gi) {
