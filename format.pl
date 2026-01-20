@@ -2,21 +2,79 @@
 ## Applies basic code standard format to path
 ## Author: Laurens Rodriguez.
 ##------------------------------------------------------------------------------
-
 use strict;
 use warnings;
 use diagnostics;
+use Cwd qw();
 
-## Set this to 2 to clean source code commented out like: //this.code = garbage
-## In order to maintain commented code use: ////this.code = example
-## Set this to 1 to only print the comment lines that would be deleted
-my $CLEAN_CODE = 0;
+##------------------------------------------------------------------------------
+## Set this to 1 to only trim final spaces, empty new lines and fix indentation.
+## This SHOULD BE SAFE, but check anyways some random files.
+## Similar to setting to 1 ONLY_TRIM + ONLY_EMPTY_LINES + ONLY_INDENTATION
+my $ONLY_SAFE = 1;
 
-my $JS_FIX_STRINGS = 1;
+##------------------------------------------------------------------------------
+## Set this to 1 to only trim final spaces
+my $ONLY_TRIM = 0;
 
+## Set this to 1 to only clean empty new lines
+my $ONLY_EMPTY_LINES = 0;
+
+## Set this to 1 to just check correct indentation by tabs or spaces
+my $ONLY_INDENTATION = 0;
+
+##------------------------------------------------------------------------------
+## Set these flags to enable additional control if all above flags are zero
+my $FIX_ALL = 0;
+my $FIX_BRACES = 0;
+my $FIX_PARENS = 0;
+my $FIX_EQUALS = 0;
+my $FIX_COLONS = 0;
+my $FIX_OPERATORS = 0;
+my $FIX_OTHER = 0;
+
+##------------------------------------------------------------------------------
 ## Set this to 1 to use TABS instead of SPACES for indentation.
 ## This doesn't change all the spaces to tabs, just the initial spaces.
 my $USE_TABS = 1;
+
+##------------------------------------------------------------------------------
+## If set to 1, this puts one space between parens, ie.: ( x == 1 )
+## If set to 0, this removes spaces between parens, ie.: (x == 1)
+my $SPACE_IN_PARENS = 0;
+
+##------------------------------------------------------------------------------
+## Set this to 3 to DELETE bad commented out source code like: //this.code = garbage (USE WITH CAUTION)
+## Set this to 2 to only print the commented out source code
+## Set this to 1 to only count lines of commented out source code
+##
+## In order to maintain commented code use: ////this.code = example or better use #if 0
+## valid comments must be like: // comment
+my $CLEAN_CODE = 0;
+
+##------------------------------------------------------------------------------
+## This checks if the formatted file is the same as the original file if all the
+## whitespace characters are ignored. This is not fail safe because the format script
+## could still wrongly modify a string and change a command or a regex expression, ie:
+##     call("two cmds") -> call("twocmds")
+##     regex("\q \\s") -> regex("\q\\s")
+## and broke something. Currently no such cases have been found but caution is required
+## whenever an automatic tool can modify all your project source files at once.
+## You should always check your changes before committing.
+my $CHECK_FORMAT = 1;
+
+##------------------------------------------------------------------------------
+## This checks if the file name follows guidelines for Unreal C++
+my $CHECK_CPP_NAMES = 0;
+
+##------------------------------------------------------------------------------
+## This checks how many lines pass the limit, disables all format
+my $ONLY_CHECK_LINE_SIZES = 0;
+my $LINE_SIZE_MAX = 170;
+my $DELETE_OVERSIZED_LINES = 0; ## Use with caution
+
+##------------------------------------------------------------------------------
+my @IGNORE_PATHS = ();
 
 my $files = 0;
 my $updated = 0;
@@ -25,14 +83,42 @@ my $deletedComments = 0;
 my $commentLines = 0;
 my $emptyLines = 0;
 my $fixedLines = 0;
+my $workingPath;
 
-my $workingPath = gets( ' Enter source path' );
-##my $workingPath = '';
+if ( @ARGV )
+{
+    $workingPath = $ARGV[0];
+    if ( @ARGV > 1 )
+    {
+        my $arg = $ARGV[1];
+        if ( $arg eq '-trim' )
+        {
+            print( " FORMAT TRIM: $workingPath\n" );
+            $ONLY_TRIM = 1;
+            $ONLY_SAFE = 0; $ONLY_EMPTY_LINES = 0; $ONLY_INDENTATION = 0;
+        }
+        elsif ( $arg eq '-safe' )
+        {
+            print( " FORMAT SAFE: $workingPath\n" );
+            $ONLY_SAFE = 1;
+        }
+        elsif ( $arg eq '-full' )
+        {
+            print( " FORMAT FULL: $workingPath\n" );
+            $FIX_ALL = 1;
+            $ONLY_SAFE = 0; $ONLY_TRIM = 0; $ONLY_EMPTY_LINES = 0; $ONLY_INDENTATION = 0;
+        }
+    }
+}
+else
+{
+    $workingPath = Cwd::cwd();
+    print( " FORMAT: $workingPath\n" );
+    print( " ONLY_SAFE\n" ) if ( $ONLY_SAFE );
+}
 
-print( " FORMAT: $workingPath\n" );
 recurse( $workingPath, \&formatFile );
 print( " ----------------------\n" );
-print( " Finished:\n" );
 print( " TOTAL FILES: $files\n" );
 print( "     UPDATED: $updated\n" );
 print( " ----------------------\n" );
@@ -40,124 +126,167 @@ print( " TOTAL LINES: $totalLines\n" );
 print( " FIXED LINES: $fixedLines\n" );
 print( " EMPTY LINES: $emptyLines\n" );
 print( "    COMMENTS: $commentLines\n" );
-print( " DELETED COMMENTS: $deletedComments\n" ) if $CLEAN_CODE;
-<STDIN>;
+if ( $CLEAN_CODE > 0 )
+{
+    print( ( ( $CLEAN_CODE == 3 ) ? " DELETED COMMENTS: " : " COMMENTS TO DELETE: " ) . "$deletedComments\n" );
+}
+print( " [FINISHED]\n" );
 
 ##------------------------------------------------------------------------------
 sub formatFile
 {
+    my $file = shift;
+
     ##--------------------------------------------------------------------------
-    local *fixOperators = sub
+    sub fixEquals
     {
         my $line = shift;
-        my $cpp = shift;
-        my $cs = shift;
-        my $js = shift;
-
-        if ( $cpp && ( $line =~ /^\s*#/ ) )
-        {
-            ## Ignore C++: #include <path/file>
-            return $line;
-        }
-        if ( !$cs )
-        {
-            ## Don't format _?_ in C# due to nullable types and null-coalescing operator
-            while ( $line =~ s/(\S)\?/$1 \?/ ) { }
-        }
-
-        while ( $line =~ s/([^\s\[]),(\S)/$1, $2/ ) { }
+        $line =~ s/([^\-+*%&\^\/!=<>|\s\[])(?:\s{0}| {2,})=/$1 =/g;
+        $line =~ s/=(?:\s{0}| {2,})([^=>\s])/= $1/g;
+        $line =~ s/([^!=\s])(?:\s{0}|\s{2,})==/$1 ==/g;
+        return $line;
+    }
+    ##--------------------------------------------------------------------------
+    sub fixColons
+    {
+        my ( $line, $js ) = @_;
 
         if ( $line !~ /^\s*(case\s|\w+:|\w+\s+\w+:)/ )
         {
-            while ( $line =~ s/([^\\:\s])(?:\s{0}|\s{2,}):([^:])/$1 :$2/ ) { }
+            $line =~ s/([^\\:\s])(?:\s{0}|\s{2,}):([^:])/$1 :$2/g;
         }
-        while ( $line =~ s/\):/\) :/ ) { }
+        $line =~ s/\):/\) :/g;
         if ( $js && ( $line !~ /\?.+:/ ) && ( $line !~ /:\s*$/ ) )
         {
-            while ( $line =~ s/([^():\s])(\s)+:/$1:/ ) { }
+            $line =~ s/([^():\s])(\s)+:/$1:/g;
         }
-        while ( $line =~ s/([^:]):(?:\s{0}|\s{2,})([^:\\\/\s])/$1: $2/ ) { }
+        $line =~ s/([^:]):(?:\s{0}| {2,})([^:\\\/\s])/$1: $2/g;
 
-        while ( $line =~ s/(\S)%([^=\s])/$1 % $2/ ) { }
+        return $line;
+    }
+    ##--------------------------------------------------------------------------
+    sub fixOther
+    {
+        my ( $line, $cs, $ref ) = @_;
 
-        while ( $line =~ s/([^\-+*\/!=<>|\s\[])=([^=\s])/$1 = $2/ ) { }
+        if ( !$cs )
+        {
+            ## Don't format _?_ in C# due to nullable types and null-coalescing operator
+            $line =~ s/(\S)\?/$1 \?/g;
+        }
+        $line =~ s/\?(\S)/\? $1/g;
+        while ( $line =~ s/([^\s\[]),(\S)/$1, $2/g ) { }
+        $line =~ s/([^(;])\s+;/$1;/g;
 
-        while ( $line =~ s/([^!=\s])(?:\s{0}|\s{2,})==/$1 ==/ ) { }
-        while ( $line =~ s/([^=])==(?:\s{0}|\s{2,})([^=\s])/$1== $2/ ) { }
+        if ( $line =~ /;{2,}\n/ )
+        {
+            $line =~ s/;{2,}\n/;\n/;
+            $$ref = 1;
+        }
+        $line =~ s/;([^])\s\*])/; $1/g;
 
-        while ( $line =~ s/([!*+\-\/])=(?:\s{0}|\s{2,})([^=\s])/$1= $2/ ) { }
+        ## Fix brackets
+        $line =~ s/\[\s+(\S+)/\[$1/g;
+        $line =~ s/(\S+)\s+\]/$1\]/g;
+        $line =~ s/\[\s+\]/\[\]/g;
+        return $line;
+    }
+    ##--------------------------------------------------------------------------
+    sub fixBraces
+    {
+        my $line = shift;
 
-        while ( $line =~ s/([^*+eE\s])(?:\s{0}|\s{2,})\+([^+])/$1 \+$2/ ) { }
-        while ( $line =~ s/([^+])\+(?:\s{0}|\s{2,})([^=+\s])/$1\+ $2/ ) { }
+        $line =~ s/\)\{/\) \{/g;
+        $line =~ s/([^\[\s\(])\{\s*$/$1 \{\n/;
+        $line =~ s/{(\S)/\{ $1/g;
+        $line =~ s/(\S)\}/$1 \}/g;
+        if ( $line !~ /(override|const|return|else|void)\s+\{/ )
+        {
+            $line =~ s/([\w+])\s+\{/$1\{/;
+        }
+        $line =~ s/([=|,]) \{ \}/$1 \{\}/;
+
+        return $line;
+    }
+    ##--------------------------------------------------------------------------
+    sub fixOperators
+    {
+        my ( $line, $cpp ) = @_;
+
+        return $line if ( $cpp && ( $line =~ /^\s*#/ ) ); ## Ignore C++ #include <path/file>
+
+        $line =~ s/(\S)%/$1 %/g;
+        $line =~ s/%([^=\s])/% $1/g;
+
+        $line =~ s/([^=])==(?:\s{0}|\s{2,})([^=\s])/$1== $2/g;
+        $line =~ s/([!*+\-\/])=(?:\s{0}|\s{2,})([^=\s])/$1= $2/g;
+
+        $line =~ s/([^*+eE\s()])(?:\s{0}|\s{2,})\+([^+])/$1 \+$2/g;
+        $line =~ s/([^+(])\+(?:\s{0}|\s{2,})([^=+\s])/$1\+ $2/g;
 
         $line =~ s/=-(\S)/= -$1/;
 
-        while ( $line =~ s/([^\-eE,:\[\s])-([^\-=>\s])/$1 - $2/ ) { }
-
-        while ( $line =~ s/([^\/*\s])\/([^=*\s])/$1 \/ $2/ ) { }
-
-        while ( $line =~ s/([^\/*\[\s])\*([^=\/*,>\]\s])/$1 \* $2/ ) { }
-
-        while ( $line =~ s/([^(;])\s+;/$1;/ ) { }
-
-        while ( $line =~ s/([^\[\s])\{/$1 \{/ ) { }
-        while ( $line =~ s/{(\S)/\{ $1/ ) { }
-        while ( $line =~ s/(\S)\}/$1 \}/ ) { }
-        $line =~ s/([=|,]) \{ \}/$1 \{\}/;
-
-        $line =~ s/;{2,}\n/;\n/;
-        while ( $line =~ s/;(\S)/; $1/ ) { }
-
+        $line =~ s/([^(\-eE,:\[{\s])-([^\-=>\s])/$1 - $2/g;
+        $line =~ s/([^\/*\s])\/([^=*\s])/$1 \/ $2/g;
+        if ( $line =~ /\s*class\s+(\S+)*([^>\s&*\/,])/ )
+        {
+            $line =~ s/class\s+(\S+)\*([^>\s&*\/,])/class $1\* $2/;
+        }
+        else
+        {
+            $line =~ s/([^\/*[()>,;\s])\*([^)&=\/*,>\]\s])/$1 \* $2/g;
+        }
         return $line;
-    };
+    }
     ##--------------------------------------------------------------------------
-    local *fixParens = sub
+    sub fixParens
     {
         my $line = shift;
-        $line =~ s/ if\(/ if \(/g;
-        $line =~ s/ while\(/ while \(/g;
-        $line =~ s/ switch\(/ switch \(/g;
-        $line =~ s/ for\(/ for \(/g;
-        $line =~ s/ function\s+\(/ function\(/g;
-        while ( $line =~ s/\(([^)\s])/\( $1/ ) { }
-        while ( $line =~ s/([^(\s])\)/$1 \)/ ) { }
+        $line =~ s/(\s+)if\(/$1if \(/g;
+        $line =~ s/(\s+)while\(/$1while \(/g;
+        $line =~ s/(\s+)switch\(/$1switch \(/g;
+        $line =~ s/(\s+)for\(/$1for \(/g;
+        $line =~ s/(\s+)function\s+\(/$1function\(/g;
+        if ( $SPACE_IN_PARENS )
+        {
+            while ( $line =~ s/\(([^)\s])/\( $1/g ) { }
+            while ( $line =~ s/([^(\s])\)/$1 \)/g ) { }
+        }
+        else
+        {
+            while ( $line =~ s/\(\s+([^)\s])/\($1/g ) { }
+            while ( $line =~ s/([^(\s])\s+\)/$1\)/g ) { }
+        }
         $line =~ s/\(\s+\)/\(\)/g;
         return $line;
-    };
+    }
     ##--------------------------------------------------------------------------
-    local *fixBrackets = sub
-    {
-        my $line = shift;
-        while ( $line =~ s/\[\s+(\S+)/\[$1/ ) { }
-        while ( $line =~ s/(\S+)\s+\]/$1\]/ ) { }
-        $line =~ s/\[\s+\]/\[\]/g;
-        return $line;
-    };
-    ##--------------------------------------------------------------------------
-    local *replaceTabs = sub
+    sub replaceTabs
     {
         my $line = shift;
         $line =~ s/\t/    /g;
         return $line;
-    };
+    }
     ##--------------------------------------------------------------------------
-    local *replaceSpaces = sub
+    sub replaceSpaces
     {
         my $line = shift;
         ## Ignore lines already starting with a TAB because they can be already aligned
         return $line if ( $line =~ /^(\t+).*/ );
-        while ( $line =~ s/^(\t*)    (.*)/$1\t$2/ ) { }
+        while ( $line =~ s/^(\t*)    (.*)/$1\t$2/ ) { } ## This must be a loop not /g
+        $line =~ s/^ {1,3}([^*\t])/\t$1/;
+        $line =~ s/^ {1,3}\t/\t/;
         return $line;
-    };
+    }
     ##--------------------------------------------------------------------------
-    local *rightTrim = sub
+    sub rightTrim
     {
         my $line = shift;
         $line =~ s/[ \t]+$//;
         return $line;
-    };
+    }
     ##--------------------------------------------------------------------------
-    local *shrink = sub
+    sub shrink
     {
         my $string = shift;
         my $size = shift;
@@ -167,20 +296,43 @@ sub formatFile
             $string = substr( $string, 0, $len )."...".substr( $string, length( $string ) - $len );
         }
         return $string;
-    };
-
-    my $file = $_[0];
+    }
+    ##--------------------------------------------------------------------------
 
     ## Check if the file is a source file.
     my $js = ( $file =~ /.+\.js$/i );
-    my $cpp = ( $file =~ /.+\.(cpp|h|c|inl)$/i );
+    my $cpp = ( $file =~ /.+\.(cpp|h|hpp|c|inl)$/i );
     my $cs = ( $file =~ /.+\.cs$/i );
     return if ( !$js && !$cpp && !$cs );
+
+    ## Check if we must ignore the file
+    for ( my $k = 0; $k < @IGNORE_PATHS; $k++ )
+    {
+        return if ( $file =~ /\Q$IGNORE_PATHS[$k]/ );
+    }
+
+    ## Check name of the file
+    if ( $cpp && $CHECK_CPP_NAMES )
+    {
+        $file =~ /([^\/]+)$/;
+        print "[ERROR NAME]: $file\n" if ( $1 !~ /^(Gui|Dt).+$/ );
+    }
+
+    return if ( $ONLY_SAFE + $ONLY_TRIM + $ONLY_EMPTY_LINES + $ONLY_INDENTATION + $FIX_ALL + $FIX_PARENS
+              + $FIX_EQUALS + $FIX_OPERATORS + $FIX_OTHER + $FIX_BRACES + $FIX_COLONS + $ONLY_CHECK_LINE_SIZES == 0 );
 
     ## Read file
     open( my $handle, '<', $file ) or die( "Can't open $file: $!" );
         my @lines = <$handle>;
     close( $handle );
+
+
+    my $trimmedFile;
+    if ( $CHECK_FORMAT )
+    {
+        $trimmedFile = join( "", @lines );
+        $trimmedFile =~ s/\s+//g;
+    }
 
     $files++;
     $totalLines += @lines;
@@ -191,10 +343,39 @@ sub formatFile
     my $changed = 0;
     my %changes = ();
     my $wasOpenBrace = 0;
+    my $multipleSemiColon = 0;
+    my $wasCopyright = 0;
+    my $wasClass = 0;
+    my $wasSeparator = 0;
+    my $badCommentLines = 0;
+    my $sizeOverflow = 0;
 
     for ( my $k = 0; $k < @lines; $k++ )
     {
+        ####print "[$k] $lines[$k]";
         $lineChanged = 0;
+        my $isComment = ( $lines[$k] =~ /^\s*\/\/.*/ );
+
+        if ( $ONLY_CHECK_LINE_SIZES && !$isComment )
+        {
+            my $len = length( $lines[$k] );
+            if ( ( $len > $LINE_SIZE_MAX ) && ( $lines[$k] !~ /^\s*(UE_LOG)\(/ ) )
+            {
+                $sizeOverflow += $len - $LINE_SIZE_MAX;
+                print "[ERROR LINE SIZE]: $len\n$lines[$k]";
+                if ( $DELETE_OVERSIZED_LINES )
+                {
+                    $changed = $lineChanged = 1;
+                    $changes{'SIZE'} = 1;
+                    $lines[$k] = '';
+                }
+            }
+        }
+        next if ( $ONLY_CHECK_LINE_SIZES);
+
+        goto JUMP_CHECK_NEWLINES if ( $ONLY_EMPTY_LINES && !$ONLY_SAFE );
+        goto JUMP_CHECK_INDENTATION if ( $ONLY_INDENTATION && !$ONLY_SAFE );
+
         $line = rightTrim( $lines[$k] );
         if ( $line ne $lines[$k] )
         {
@@ -202,6 +383,10 @@ sub formatFile
             $changes{'TRIM'} = 1;
             $lines[$k] = $line;
         }
+
+        next if ( $ONLY_TRIM && !$ONLY_SAFE );
+
+JUMP_CHECK_INDENTATION:
         $line = $USE_TABS ? replaceSpaces( $lines[$k] ) : replaceTabs( $lines[$k] );
         if ( $line ne $lines[$k] )
         {
@@ -209,34 +394,70 @@ sub formatFile
             $changes{$USE_TABS ? 'SPACES' : 'TABS'} = 1;
             $lines[$k] = $line;
         }
+        next if ( $ONLY_INDENTATION && !$ONLY_SAFE );
+        goto JUMP_CHECK_NEWLINES if ( $ONLY_SAFE );
 
         ## Process comments
-        my $isComment = ( $lines[$k] =~ /^\s*\/\/.*/ );
         if ( ( $CLEAN_CODE > 0 ) && $isComment )
         {
-            my $validComment = ( $lines[$k] =~ /^\s*\/\/[=-]+$/ );  ## Separators: //========= or //----------
+            my $validComment = 0;
+            if ( $lines[$k] =~ /^\s*\/\/[ !]*[*=-]+$/ ) ## Separators: //==== or // --- or //!----
+            {
+                $validComment = 1;
+                $wasSeparator = !$wasSeparator;
+                $wasCopyright = 0 if ( $wasCopyright );
+                $wasClass = 0 if ( $wasClass );
+
+                # print "$lines[$k]" if ($lines[$k] ne "//*****************************************************************************\n");
+
+            }
             $validComment = ( $lines[$k] =~ /^\/\/$/ ) if ( !$validComment ); ## Header space: //
             $validComment = ( $lines[$k] =~ /^\s*\/\/\/\/[^\/]/ ) if ( !$validComment ); ## ////
-            $validComment = ( $lines[$k] =~ /^\s*\/\/! [^\s]/ ) if ( !$validComment );   ## //!
+            $validComment = ( $lines[$k] =~ /^\s*\/\/! +[^\s]/ ) if ( !$validComment );   ## //!
             $validComment = ( $lines[$k] =~ /^\s*\/\/ [\[<\d]/ ) if ( !$validComment );  ## // [ or // < or // 1.
-            $validComment = ( $js && ( $lines[$k] =~ /^\s*\/\/\$/ ) ) if ( !$validComment ); ## //$
+            $validComment = ( $lines[$k] =~ /^\s*\/\/\$/ ) if ( $js && !$validComment ); ## //$
+            $validComment = ( $lines[$k] =~ /^\s*\/\/#[A-Za-z]+/ ) if ( !$validComment ); ## //#if //#TODO //#define
 
+            if ( !$validComment && ( $lines[$k] =~ /^\/\/\s+Copyright / ) )
+            {
+                $validComment = 1;
+                $wasCopyright = 1;
+            }
+            if ( !$validComment && $wasCopyright )
+            {
+                $validComment = 1;
+            }
+            if ( !$validComment && ( $lines[$k] =~ /^\/\/\s+\S+\s+class\s+$/ ) )
+            {
+                $validComment = 1;
+                $wasClass = 1;
+            }
+            if ( !$validComment && ( $wasClass || $wasSeparator ) )
+            {
+                $validComment = 1;
+            }
             if ( !$validComment )
             {
-                $validComment = ( $lines[$k] =~ /^\s*\/\/ [A-Za-z]+.*/ );
+                if ( $lines[$k] !~ /^\s*\/\/\s+(if|else|switch|while)\s+/ )
+                {
+                    $validComment = ( $lines[$k] =~ /^\s*\/\/ [A-Za-z"'\*\(\-]+.*/ );
+                }
+
                 ## Delete suspicious line comments
                 if ( !$validComment )
                 {
+                    $badCommentLines++;
                     $deletedComments++;
-                    $changed = $lineChanged = 1;
-                    $changes{'CLEAN'} = 1;
-                    if ( $CLEAN_CODE == 1 )
+
+                    if ( $CLEAN_CODE >= 2 )
                     {
                         print "$lines[$k]";
-                    }
-                    else
-                    {
-                        $lines[$k] = $line = '';
+                        if ( $CLEAN_CODE == 3 )
+                        {
+                            $changed = $lineChanged = 1;
+                            $changes{'CLEAN'} = 1;
+                            $lines[$k] = $line = '';
+                        }
                     }
                 }
             }
@@ -249,7 +470,7 @@ sub formatFile
         my @keys = ();
 
         my $stripped = $line;
-        while ( $stripped =~ /('(?:[^\\']+|\\.)*')/ )
+        while ( ( $stripped =~ /('(?:[^\\']+|\\.)*')/ ) || ( $stripped =~ /(`(?:[^`]+)*`)/ ) )
         {
             my $s = $1;
             push( @keys, "___s___$counter" . '_' );
@@ -257,19 +478,12 @@ sub formatFile
             $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
             $counter++;
         }
-
         while ( $stripped =~ /("(?:[^\\"]+|\\.)*")/ )
         {
             my $s = $1;
             push( @keys, "___s___$counter" . '_' );
             $strs{"___s___$counter" . '_'} = $s;
             $stripped =~ s/\Q$s\E/___s___\Q$counter\E_/;
-            if ( $JS_FIX_STRINGS && $js && !$isComment && $s !~ /\\n|___s___|\\t|\\"|'/ )
-            {
-                $strs{"___s___$counter" . '_'} =~ s/"/'/g;
-                $changed = $lineChanged = 1;
-                $changes{'STRINGS'} = 1;
-            }
             $counter++;
         }
 
@@ -298,34 +512,68 @@ sub formatFile
                 $stripped =~ s/\Q$1\E/___s___\Q$counter\E_/;
                 $counter++;
             }
-
-            $line = fixParens( $stripped );
-            if ( $line ne $stripped )
+            if ( $FIX_OPERATORS )
             {
-                $changed = $lineChanged = 1;
-                $changes{'PARENS'} = 1;
-                $stripped = $line;
+                $line = fixOperators( $stripped, $cpp );
+                if ( $line ne $stripped )
+                {
+                    ## print "OPS1: $stripped";
+                    $changed = $lineChanged = 1;
+                    $changes{'OPS'} = 1;
+                    $stripped = $line;
+                    ## print "OPS2: $line";
+                }
             }
-
-            $line = fixOperators( $stripped, $cpp, $cs, $js );
-            if ( $line ne $stripped )
+            if ( $FIX_ALL || $FIX_PARENS )
             {
-                $changed = $lineChanged = 1;
-                $changes{'OPS'} = 1;
-                $stripped = $line;
-            }
-
-            if ( $cpp || $cs )
-            {
-                $line = fixBrackets( $stripped );
+                $line = fixParens( $stripped );
                 if ( $line ne $stripped )
                 {
                     $changed = $lineChanged = 1;
-                    $changes{'BRACKETS'} = 1;
+                    $changes{'PARENS'} = 1;
                     $stripped = $line;
                 }
             }
-
+            if ( $FIX_ALL || $FIX_BRACES )
+            {
+                $line = fixBraces( $stripped );
+                if ( $line ne $stripped )
+                {
+                    $changed = $lineChanged = 1;
+                    $changes{'BRACES'} = 1;
+                    $stripped = $line;
+                }
+            }
+            if ( $FIX_ALL || $FIX_EQUALS )
+            {
+                $line = fixEquals( $stripped );
+                if ( $line ne $stripped )
+                {
+                    $changed = $lineChanged = 1;
+                    $changes{'EQUALS'} = 1;
+                    $stripped = $line;
+                }
+            }
+            if ( $FIX_ALL || $FIX_OTHER )
+            {
+                $line = fixOther( $stripped, $cs, \$multipleSemiColon );
+                if ( $line ne $stripped )
+                {
+                    $changed = $lineChanged = 1;
+                    $changes{'OTHER'} = 1;
+                    $stripped = $line;
+                }
+            }
+            if ( $FIX_ALL || $FIX_COLONS )
+            {
+                $line = fixColons( $stripped, $js );
+                if ( $line ne $stripped )
+                {
+                    $changed = $lineChanged = 1;
+                    $changes{'COLONS'} = 1;
+                    $stripped = $line;
+                }
+            }
         }
 
         ## Restore final comments
@@ -343,13 +591,13 @@ sub formatFile
         ## Check if stripped line is OK
         if ( $stripped =~ /___s___/ )
         {
-            print "\nERROR PARSING:\n$newLine";
-            $stripped = $lines[$k];
+            print "\n[FATAL ERROR PARSING $file]:\n$newLine";
+            exit 1;
         }
-
         $lines[$k] = $stripped if ( $stripped ne $lines[$k] );
 
         ## Check for empty lines
+JUMP_CHECK_NEWLINES:
         if ( $lines[$k] =~ /^\s*\n$/ )
         {
             if ( $wasEmpty || $wasOpenBrace )
@@ -361,8 +609,8 @@ sub formatFile
             else
             {
                 $emptyLines++;
-                $wasEmpty = 1;
             }
+            $wasEmpty = 1;
         }
         else
         {
@@ -370,18 +618,37 @@ sub formatFile
         }
 
         $fixedLines++ if ( $lineChanged );
-
         $wasOpenBrace = ( $lines[$k] =~ /^\s*{\s*$/ );
-        if ( ( $lines[$k] =~ /^\s*}\s*$/ ) && ( $lines[$k - 1] =~ /^\s*$/ ) )
+
+        if ( ( $lines[$k] =~ /^\s*}\s*$/ ) )
         {
-            $changed = $lineChanged = 1;
-            $changes{'LINES'} = 1;
-            $lines[$k - 1] = '';
+            my $p = 1;
+            while ( $lines[$k - $p] =~ /^\s*$/ )
+            {
+                $changed = $lineChanged = 1;
+                $changes{'LINES'} = 1;
+                $lines[$k - $p] = '';
+                $p++;
+            }
         }
     }
 
     if ( $changed )
     {
+        if ( $CHECK_FORMAT && ( $CLEAN_CODE == 0 ))
+        {
+            my $fileChanged = join( "", @lines );
+            $fileChanged =~ s/\s+//g;
+            if ( $fileChanged ne $trimmedFile )
+            {
+                if ( !$FIX_OTHER || !$multipleSemiColon )
+                {
+                    print "[FATAL ERROR]\n$file changed file contents\n";
+                    return;
+                }
+            }
+        }
+
         my $mods = '';
         for my $mod ( keys %changes )
         {
@@ -394,6 +661,15 @@ sub formatFile
             print $OUT @lines;
         close( $OUT );
         $updated++;
+    }
+    if ( ( $CLEAN_CODE > 0 ) && ( $badCommentLines > 0 ) )
+    {
+        my $fileLines = @lines;
+        print "$file\t$badCommentLines\t$fileLines\n";
+    }
+    if ( $ONLY_CHECK_LINE_SIZES && $sizeOverflow > 0 )
+    {
+        print "\tOVERSISE: $file\t$sizeOverflow\n";
     }
 }
 
